@@ -14,6 +14,8 @@ from typing import Any
 import requests
 from fastmcp import FastMCP
 from mcp.types import Icon, ToolAnnotations
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 
 from advisor_mcp.server import mcp_server as AdvisorMCP
 from content_sources_mcp.server import mcp as ContentSourcesMCP
@@ -27,6 +29,9 @@ from rbac_mcp.server import mcp as RbacMCP
 from remediations_mcp.server import mcp as RemediationsMCP
 from rhsm_mcp.server import mcp as RhsmMCP
 from vulnerability_mcp.server import mcp as VulnerabilityMCP
+
+# Configure module logger
+logger = logging.getLogger(__name__)
 
 MCPS: list[InsightsMCP] = [
     ImageBuilderMCP,
@@ -106,10 +111,11 @@ class InsightsMCPServer(FastMCP):  # pylint: disable=too-many-instance-attribute
         mcp_host: MCP server host for authentication
         mcp_port: MCP server port for authentication
         token_endpoint: Token endpoint for authentication
+        cors_origins: List of allowed CORS origins
         **settings: Additional settings passed to parent class
     """
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         name: str | None = None,
         instructions: str | None = None,
@@ -124,6 +130,7 @@ class InsightsMCPServer(FastMCP):  # pylint: disable=too-many-instance-attribute
         mcp_host: str | None = None,
         mcp_port: int | None = None,
         token_endpoint: str = config.SSO_TOKEN_ENDPOINT,
+        cors_origins: list[str] | None = None,
         **settings: Any,
     ):
         name = name or "Red Hat Insights"
@@ -146,6 +153,9 @@ class InsightsMCPServer(FastMCP):  # pylint: disable=too-many-instance-attribute
             auth=oauth_provider,
             icons=[Icon(src=get_icon_data_uri())],
             website_url="https://console.redhat.com",
+            # Required for MCP Apps (e.g., basic-hosts example)
+            # Creates fresh transport per request without session tracking
+            stateless_http=True,
             **settings,
         )
         self.base_url = base_url
@@ -156,6 +166,42 @@ class InsightsMCPServer(FastMCP):  # pylint: disable=too-many-instance-attribute
         self.oauth_enabled = oauth_enabled
         self.mcp_transport = mcp_transport
         self.token_endpoint = token_endpoint
+        self.cors_origins = cors_origins or []
+
+    def run(self, transport="stdio", **kwargs):  # pylint: disable=arguments-differ
+        """Override run to inject CORS middleware for HTTP transport.
+
+        Args:
+            transport: Transport type ('stdio', 'http', 'sse')
+            **kwargs: Additional arguments passed to parent's run method
+
+        Returns:
+            Result of parent's run method
+        """
+        # Inject CORS middleware for HTTP transport
+        if transport == "http" and self.cors_origins:
+            # Get existing middleware list or create empty one
+            middleware_list = kwargs.get("middleware", [])
+            if middleware_list is None:
+                middleware_list = []
+
+            # Create CORS middleware using Starlette's Middleware class
+            cors_middleware = Middleware(
+                CORSMiddleware,
+                allow_origins=self.cors_origins,
+                allow_credentials=True,
+                allow_methods=["GET", "POST", "OPTIONS", "DELETE"],
+                allow_headers=["*"],
+            )
+
+            # Add CORS as the first middleware (outermost layer)
+            middleware_list.insert(0, cors_middleware)
+            kwargs["middleware"] = middleware_list
+
+            logger.debug("CORS middleware injected with origins: %s", self.cors_origins)
+
+        # Call parent's run with CORS middleware
+        return super().run(transport=transport, **kwargs)
 
     def register_mcps(self, allowed_mcps: list[str], readonly: bool = True):
         """Register and mount allowed MCP servers.
@@ -361,12 +407,12 @@ def get_latest_release_tag() -> str:
     return response.json()["tag_name"]
 
 
-def setup_credentials(mcp_server_config: dict, logger: logging.Logger) -> None:
+def setup_credentials(mcp_server_config: dict, log: logging.Logger) -> None:
     """Set up client credentials based on OAuth mode.
 
     Args:
         mcp_server_config: Server configuration dictionary to update
-        logger: Logger instance for logging messages
+        log: Logger instance for logging messages
 
     Raises:
         SystemExit: If required credentials are missing
@@ -380,10 +426,10 @@ def setup_credentials(mcp_server_config: dict, logger: logging.Logger) -> None:
             }
         )
         if not all(mcp_server_config.get(k) for k in ("client_id", "client_secret")):
-            logger.error("SSO Client ID and secret are required for SSO OAuth authentication")
+            log.error("SSO Client ID and secret are required for SSO OAuth authentication")
             # Don't exit the program to allow the user to continue using the server without credentials
             # sys.exit(1)
-        logger.info("Using SSO Client ID: %s", mcp_server_config["client_id"])
+        log.info("Using SSO Client ID: %s", mcp_server_config["client_id"])
     else:
         # Traditional mode - use service account credentials
         mcp_server_config.update(
@@ -400,18 +446,18 @@ def setup_credentials(mcp_server_config: dict, logger: logging.Logger) -> None:
         if transport == "stdio" and (
             not any(mcp_server_config.get(k) for k in ("client_id", "client_secret", "refresh_token"))
         ):
-            logger.error("Service account credentials are required for Insights authentication")
+            log.error("Service account credentials are required for Insights authentication")
             # Don't exit the program to allow the user to continue using the server without credentials
             # sys.exit(1)
 
         if mcp_server_config.get("client_id"):
-            logger.info("Using Insights Client ID: %s", mcp_server_config["client_id"])
+            log.info("Using Insights Client ID: %s", mcp_server_config["client_id"])
 
         # Warn about production usage with environment credentials for HTTP/SSE transports
         if transport in ["http", "sse"] and (
             mcp_server_config.get("client_id") or mcp_server_config.get("client_secret")
         ):
-            logger.warning(
+            log.warning(
                 "WARNING: Using environment credentials with %s transport. "
                 "THIS SHOULD NOT BE USED IN PRODUCTION! "
                 "All requests will share the same credentials. "
@@ -482,7 +528,7 @@ def get_container_brand() -> tuple[str, str]:
     return container_brand, container_brand_long
 
 
-def main():  # pylint: disable=too-many-statements,too-many-locals
+def main():  # pylint: disable=too-many-statements,too-many-locals,too-many-branches
     """Main entry point for the Insights MCP server."""
     available_toolsets = f"all, {', '.join(mcp.toolset_name for mcp in MCPS)}"
     toolset_help = f"Comma-separated list of toolsets to use. Available toolsets: {available_toolsets} (default: all)"
@@ -538,7 +584,7 @@ def main():  # pylint: disable=too-many-statements,too-many-locals
         args.transport = "stdio"
 
     # ==== Start of Logging Configuration ====
-    logger = logging.getLogger("InsightsMCPServer")
+    logger = logging.getLogger("InsightsMCPServer")  # pylint: disable=redefined-outer-name
     logger.info("Starting Insights MCP server with args: %s", args)
 
     # Always configure basic logging (no longer conditional on --debug)
@@ -627,6 +673,30 @@ def main():  # pylint: disable=too-many-statements,too-many-locals
             logger.info(">>> The origin passed in host:port: %s:%s", args.host, args.port)
             logger.info(">>> Note: For SSO authentication, you need to register the mcp server host:port with SSO")
             logger.info(">>> Allowed host:port combinations are: %s", config.SSO_AUTHORIZED_MCP_SERVER_HOST_PORTS)
+
+    # Configure CORS origins for HTTP transport
+    if args.transport == "http":
+        # Default CORS origins
+        cors_origins = [
+            "http://localhost:8080",
+            "https://chatgpt.com",
+            "https://chat.openai.com",
+        ]
+
+        # Add custom CORS origins from environment variable
+        env_cors = os.getenv("INSIGHTS_MCP_CORS_ORIGINS", "")
+        if env_cors:
+            additional_origins = [origin.strip() for origin in env_cors.split(",") if origin.strip()]
+            cors_origins.extend(additional_origins)
+            logger.info("Added custom CORS origins from INSIGHTS_MCP_CORS_ORIGINS: %s", additional_origins)
+
+        # Allow all origins if wildcard is set
+        if os.getenv("INSIGHTS_MCP_CORS_ALLOW_ALL", "").lower() in ("true", "1", "yes"):
+            cors_origins = ["*"]
+            logger.warning("CORS configured to allow ALL origins (INSIGHTS_MCP_CORS_ALLOW_ALL=true)")
+
+        mcp_server_config["cors_origins"] = cors_origins
+        logger.info("CORS configured with allowed origins: %s", cors_origins)
 
     # Create and run the MCP server
     mcp_server = InsightsMCPServer(**mcp_server_config)

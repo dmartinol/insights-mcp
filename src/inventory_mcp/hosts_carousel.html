@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Host Inventory Carousel v5</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --font-sans: system-ui, -apple-system, sans-serif;
+            --color-text-primary: #333;
+            --color-text-secondary: #666;
+            --color-bg: #fff;
+            --color-border: #ddd;
+            --color-primary: #0066cc;
+            --color-success: #28a745;
+            --color-warning: #ffc107;
+            --color-danger: #dc3545;
+            --color-unknown: #6c757d;
+        }
+        [data-theme="dark"] {
+            --color-text-primary: #eee;
+            --color-text-secondary: #999;
+            --color-bg: #1a1a1a;
+            --color-border: #444;
+            --color-primary: #4da6ff;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme]) {
+                --color-text-primary: #eee;
+                --color-text-secondary: #999;
+                --color-bg: #1a1a1a;
+                --color-border: #444;
+                --color-primary: #4da6ff;
+            }
+        }
+        body {
+            font-family: var(--font-sans);
+            background: var(--color-bg);
+            color: var(--color-text-primary);
+            padding: 16px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .carousel-wrapper {
+            position: relative;
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 24px;
+            min-height: 400px;
+        }
+        .carousel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .carousel-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .carousel-counter {
+            font-size: 14px;
+            color: var(--color-text-secondary);
+        }
+        .host-card {
+            display: none;
+            animation: fadeIn 0.3s ease-in;
+        }
+        .host-card.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .host-name {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--color-text-primary);
+        }
+        .host-id {
+            font-size: 12px;
+            color: var(--color-text-secondary);
+            font-family: monospace;
+            margin-bottom: 16px;
+        }
+        .host-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .detail-label {
+            font-size: 12px;
+            color: var(--color-text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        .detail-value {
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .staleness-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .staleness-fresh { background: var(--color-success); color: white; }
+        .staleness-stale { background: var(--color-danger); color: white; }
+        .staleness-stale_warning { background: var(--color-warning); color: #333; }
+        .staleness-unknown { background: var(--color-unknown); color: white; }
+        .carousel-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid var(--color-border);
+        }
+        .nav-button {
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        .nav-button:hover:not(:disabled) {
+            background: #0052a3;
+        }
+        .nav-button:disabled {
+            background: var(--color-border);
+            color: var(--color-text-secondary);
+            cursor: not-allowed;
+        }
+        .error-message {
+            padding: 20px;
+            background: #fee;
+            border: 1px solid var(--color-danger);
+            border-radius: 6px;
+            color: var(--color-danger);
+            text-align: center;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--color-text-secondary);
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--color-text-secondary);
+        }
+        .provider-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background: var(--color-border);
+            border-radius: 4px;
+            font-size: 11px;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="carousel-wrapper">
+            <div class="carousel-header">
+                <div class="carousel-title">Host Inventory</div>
+                <div class="carousel-counter" id="counter">Loading...</div>
+            </div>
+            <div id="host-container">
+                <div class="loading">Loading hosts...</div>
+            </div>
+            <div class="carousel-controls">
+                <button class="nav-button" id="prev-btn" onclick="previousHost()" disabled>← Previous</button>
+                <button class="nav-button" id="next-btn" onclick="nextHost()" disabled>Next →</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // v5: Fixed top-level await syntax error
+        console.log("=== Host Inventory Carousel v5 ===");
+        console.log("Loading App SDK...");
+
+        // Define fallback App class in case SDK fails to load
+        class MockApp {
+            constructor(config) {
+                console.log("Using MockApp (SDK not available)");
+                this.config = config;
+                this.ontoolresult = null;
+                this.onhostcontextchanged = null;
+            }
+            async connect() {
+                console.log("MockApp.connect() - no real connection");
+            }
+            getHostContext() {
+                return {};
+            }
+        }
+
+        let App = MockApp;
+        let app;
+
+        // Load SDK asynchronously (avoid top-level await)
+        try {
+            const module = await import("https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps");
+            App = module.App;
+            console.log("✅ SDK loaded successfully");
+        } catch (e) {
+            console.warn("❌ Failed to load SDK, using mock:", e.message);
+        }
+
+        app = new App({ name: "Host Inventory Carousel", version: "1.0.0" });
+
+        let hosts = [];
+        let currentIndex = 0;
+        let totalHosts = 0;
+        let currentPage = 1;
+        let totalPages = 1;
+
+        function formatDate(dateString) {
+            if (!dateString) return "N/A";
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleString();
+            } catch {
+                return dateString;
+            }
+        }
+
+        function getStalenessClass(staleness) {
+            const normalized = (staleness || "unknown").toLowerCase();
+            if (normalized === "fresh") return "staleness-fresh";
+            if (normalized === "stale") return "staleness-stale";
+            if (normalized === "stale_warning") return "staleness-stale_warning";
+            return "staleness-unknown";
+        }
+
+        function renderAllHosts() {
+            const container = document.getElementById("host-container");
+            container.innerHTML = ""; // Clear loading message
+
+            // Create a card for each host
+            hosts.forEach((host, index) => {
+                const hostCard = document.createElement("div");
+                hostCard.className = index === 0 ? "host-card active" : "host-card";
+                hostCard.innerHTML = `
+                    <div class="host-name">${escapeHtml(host.display_name || host.fqdn || host.id || "Unknown Host")}</div>
+                    <div class="host-id">ID: ${escapeHtml(host.id || "N/A")}</div>
+                    <div class="host-details">
+                        <div class="detail-item">
+                            <div class="detail-label">Staleness</div>
+                            <div class="detail-value">
+                                <span class="staleness-badge ${getStalenessClass(host.staleness)}">
+                                    ${escapeHtml(host.staleness || "unknown")}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Provider</div>
+                            <div class="detail-value">
+                                ${host.provider_type ? `<span class="provider-badge">${escapeHtml(host.provider_type)}</span>` : "N/A"}
+                            </div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">FQDN</div>
+                            <div class="detail-value">${escapeHtml(host.fqdn || "N/A")}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Last Updated</div>
+                            <div class="detail-value">${formatDate(host.updated || host.created)}</div>
+                        </div>
+                        ${host.system_profile ? `
+                        <div class="detail-item">
+                            <div class="detail-label">OS</div>
+                            <div class="detail-value">${escapeHtml(host.system_profile.operating_system?.name || "N/A")} ${escapeHtml(host.system_profile.operating_system?.major || "")}.${escapeHtml(host.system_profile.operating_system?.minor || "")}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">CPU</div>
+                            <div class="detail-value">${host.system_profile.cpu_count || "N/A"} cores</div>
+                        </div>
+                        ` : ""}
+                    </div>
+                `;
+                container.appendChild(hostCard);
+            });
+        }
+
+        function escapeHtml(text) {
+            if (text == null) return "";
+            const div = document.createElement("div");
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function updateCounter() {
+            const counter = document.getElementById("counter");
+            if (hosts.length === 0) {
+                counter.textContent = "No hosts";
+            } else {
+                counter.textContent = `Host ${currentIndex + 1} of ${hosts.length}${totalHosts > hosts.length ? ` (${totalHosts} total)` : ""}`;
+            }
+        }
+
+        function updateNavigation() {
+            const prevBtn = document.getElementById("prev-btn");
+            const nextBtn = document.getElementById("next-btn");
+            prevBtn.disabled = currentIndex === 0;
+            nextBtn.disabled = currentIndex >= hosts.length - 1;
+        }
+
+        function showHost(index) {
+            if (index < 0 || index >= hosts.length) return;
+            currentIndex = index;
+            const cards = document.querySelectorAll(".host-card");
+            cards.forEach((card, i) => {
+                card.classList.toggle("active", i === index);
+            });
+            updateCounter();
+            updateNavigation();
+        }
+
+        window.previousHost = function() {
+            if (currentIndex > 0) {
+                showHost(currentIndex - 1);
+            }
+        };
+
+        window.nextHost = function() {
+            if (currentIndex < hosts.length - 1) {
+                showHost(currentIndex + 1);
+            }
+        };
+
+        // Keyboard navigation
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowLeft") previousHost();
+            if (e.key === "ArrowRight") nextHost();
+        });
+
+        app.ontoolresult = async (params) => {
+            console.log("🎉 ontoolresult called!");
+            console.log("Received params:", params);
+
+            try {
+                const container = document.getElementById("host-container");
+
+                // Parse the data from the tool result
+                let data;
+
+                // Check for structuredContent first (MCP protocol wrapping)
+                if (params.structuredContent && typeof params.structuredContent === "object") {
+                    console.log("Extracting from structuredContent");
+                    // Handle MCP protocol: structuredContent.result contains the actual data
+                    data = params.structuredContent.result || params.structuredContent;
+                    console.log("Extracted data:", data);
+                }
+                // Handle string responses (errors)
+                else if (typeof params.content === "string") {
+                    container.innerHTML = `<div class="error-message">${escapeHtml(params.content)}</div>`;
+                    return;
+                }
+                // Handle content array with text
+                else if (params.content && params.content[0]?.type === "text") {
+                    const textContent = params.content[0].text;
+                    // Try to parse as JSON first
+                    try {
+                        data = JSON.parse(textContent);
+                    } catch {
+                        // If not JSON, show as error
+                        container.innerHTML = `<div class="error-message">${escapeHtml(textContent)}</div>`;
+                        return;
+                    }
+                }
+                // Handle direct object content
+                else if (typeof params.content === "object") {
+                    data = params.content;
+                }
+                // Unknown format
+                else {
+                    container.innerHTML = `<div class="error-message">Unexpected response format</div>`;
+                    return;
+                }
+
+                // Handle API response structure
+                console.log("Parsing response structure...");
+                if (data.results && Array.isArray(data.results)) {
+                    console.log("✅ Found results array with", data.results.length, "hosts");
+                    hosts = data.results;
+                    totalHosts = data.total || hosts.length;
+                    currentPage = data.page || 1;
+                    totalPages = Math.ceil(totalHosts / (data.per_page || 10));
+                } else if (Array.isArray(data)) {
+                    console.log("✅ Data is array with", data.length, "hosts");
+                    hosts = data;
+                    totalHosts = hosts.length;
+                } else if (data.data && Array.isArray(data.data)) {
+                    console.log("✅ Found data.data array with", data.data.length, "hosts");
+                    hosts = data.data;
+                    totalHosts = data.meta?.count || hosts.length;
+                } else {
+                    console.warn("❌ No recognizable data structure found");
+                    container.innerHTML = `<div class="empty-state">No hosts found</div>`;
+                    return;
+                }
+
+                if (hosts.length === 0) {
+                    console.warn("⚠️ Hosts array is empty");
+                    container.innerHTML = `<div class="empty-state">No hosts found</div>`;
+                    updateCounter();
+                    return;
+                }
+
+                console.log("✅ Rendering", hosts.length, "hosts");
+
+                // Render all host cards
+                currentIndex = 0;
+                renderAllHosts();
+                updateCounter();
+                updateNavigation();
+            } catch (error) {
+                const container = document.getElementById("host-container");
+                container.innerHTML = `<div class="error-message">Error: ${escapeHtml(error.message)}</div>`;
+            }
+        };
+
+        app.onhostcontextchanged = (params) => {
+            if (params.theme) {
+                document.documentElement.setAttribute("data-theme", params.theme);
+            }
+        };
+
+        // Initialize app (no top-level await)
+        (async () => {
+            try {
+                console.log("Connecting to MCP host...");
+                await app.connect();
+                console.log("✅ Connected to MCP host");
+
+                // Apply initial theme
+                const ctx = app.getHostContext();
+                if (ctx?.theme) {
+                    document.documentElement.setAttribute("data-theme", ctx.theme);
+                }
+            } catch (error) {
+                console.error("❌ Failed to connect:", error);
+            }
+        })();
+    </script>
+</body>
+</html>

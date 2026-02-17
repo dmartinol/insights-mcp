@@ -4,6 +4,8 @@ MCP server for host inventory data via Red Hat Insights API.
 Provides tools to get host inventory data for systems connected to Insights.
 """
 
+import importlib.resources
+from pathlib import Path
 from typing import Annotated, Any
 
 from pydantic import Field
@@ -27,8 +29,61 @@ mcp = InsightsMCP(
     """,
 )
 
+# UI Resource URI for registration (will be transformed by mount())
+# The resource is registered with this URI, but mount() will transform it
+# When mounted with prefix "inventory_", "ui://hosts-carousel-v5" becomes "ui://inventory_/hosts-carousel-v5"
+# v5: Fixed top-level await syntax error, added comprehensive logging
+RESOURCE_URI = "ui://hosts-carousel-v5"
 
-@mcp.tool(annotations={"readOnlyHint": True})
+# URI that will exist AFTER mounting - this is what tool metadata should reference
+# The client will look for this URI when trying to fetch the UI
+MOUNTED_RESOURCE_URI = "ui://inventory_/hosts-carousel-v5"
+
+
+def _load_carousel_html() -> str:
+    """Load the hosts carousel HTML from the dedicated file."""
+    try:
+        # Try using importlib.resources first (preferred for packages)
+        if hasattr(importlib.resources, "files"):
+            # Python 3.9+
+            return (
+                importlib.resources.files("inventory_mcp").joinpath("hosts_carousel.html").read_text(encoding="utf-8")
+            )
+        # Python 3.8 fallback
+        return importlib.resources.read_text("inventory_mcp", "hosts_carousel.html", encoding="utf-8")
+    except (FileNotFoundError, ModuleNotFoundError, AttributeError, TypeError):  # pylint: disable=broad-exception-caught
+        # Fallback to direct file read if importlib.resources doesn't work
+        html_path = Path(__file__).parent / "hosts_carousel.html"
+        return html_path.read_text(encoding="utf-8")
+
+
+# Embedded Host Carousel HTML for MCP App
+EMBEDDED_CAROUSEL_HTML = _load_carousel_html()
+
+
+@mcp.resource(
+    RESOURCE_URI,
+    mime_type="text/html;profile=mcp-app",
+    meta={"ui": {"csp": {"resourceDomains": ["https://unpkg.com"]}}},
+)
+def hosts_carousel_view() -> str:
+    """Host carousel UI resource for displaying inventory hosts."""
+    return EMBEDDED_CAROUSEL_HTML
+
+
+@mcp.tool(
+    annotations={"readOnlyHint": True},
+    meta={
+        "ui": {
+            # Use the URI AFTER mounting, since that's what the client will see
+            "resourceUri": MOUNTED_RESOURCE_URI,
+            # Optional: Add display hints for ChatGPT
+            "displayHints": {"title": "Host Inventory", "description": "Browse your registered hosts"},
+        },
+        # Legacy support for clients that expect flattened format
+        "ui/resourceUri": MOUNTED_RESOURCE_URI,
+    },
+)
 async def list_hosts(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     hostname_or_id: Annotated[str, Field("", description="Filter by display_name, fqdn, or id (case-insensitive).")],
     display_name: Annotated[str, Field("", description="Filter by display name (case-insensitive).")],
@@ -90,6 +145,7 @@ async def list_hosts(  # pylint: disable=too-many-arguments,too-many-positional-
     params["page"] = page
 
     response = await mcp.insights_client.get("hosts", params=params)
+
     if isinstance(response, str):
         return response
     return response
