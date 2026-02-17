@@ -62,13 +62,13 @@ async def test_resource_registration():
     print(f"CAROUSEL_MOUNTED_URI: {CAROUSEL_MOUNTED_URI}")
     print(f"DETAILS_RESOURCE_URI: {DETAILS_RESOURCE_URI}")
     print(f"DETAILS_MOUNTED_URI: {DETAILS_MOUNTED_URI}")
-    
+
     # After mounting with "inventory_" prefix, check for valid carousel URIs
     # Accept any URI containing "hosts-carousel" (allows timestamp suffixes for cache busting)
     if "hosts-carousel" not in CAROUSEL_RESOURCE_URI:
         print(f"✗ CAROUSEL_RESOURCE_URI is incorrect: {CAROUSEL_RESOURCE_URI}")
         return False
-    if not DETAILS_RESOURCE_URI.endswith(("host-details-v1", "host-details-v2")):
+    if not DETAILS_RESOURCE_URI.endswith(("host-details-v1")):
         print(f"✗ DETAILS_RESOURCE_URI is incorrect: {DETAILS_RESOURCE_URI}")
         return False
     print("✓ Resource URIs are correctly defined")
@@ -86,7 +86,7 @@ async def test_resource_registration():
             html_content = inventory_module.hosts_carousel_view()
             if isinstance(html_content, str) and "Host Inventory Carousel" in html_content:
                 print("✓ Resource function returns correct HTML content")
-                if RESOURCE_URI in html_content or "inventory-mcp" in html_content.lower():
+                if CAROUSEL_RESOURCE_URI in html_content or "inventory-mcp" in html_content.lower():
                     print("✓ HTML content appears to be for the carousel")
                 return True
             else:

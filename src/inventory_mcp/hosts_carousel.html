@@ -245,6 +245,51 @@
             padding: 40px;
             color: var(--color-text-secondary);
         }
+        .actions-section {
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 2px solid var(--color-border);
+        }
+        .actions-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--color-text-primary);
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .action-button {
+            padding: 12px 20px;
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .action-button:hover {
+            background: #0052a3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .action-button-secondary {
+            background: var(--color-border);
+            color: var(--color-text-primary);
+        }
+        .action-button-secondary:hover {
+            background: var(--color-text-secondary);
+            color: white;
+        }
         .provider-badge {
             display: inline-block;
             padding: 4px 8px;
@@ -253,6 +298,93 @@
             font-size: 11px;
             text-transform: uppercase;
             font-weight: 500;
+        }
+
+        /* CVE List Styles */
+        .cve-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .cve-card {
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .cve-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .cve-id {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--color-primary);
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .cve-id:hover {
+            text-decoration: underline;
+        }
+        .cvss-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .cvss-critical { background: #dc3545; color: white; }
+        .cvss-important { background: #fd7e14; color: white; }
+        .cvss-moderate { background: #ffc107; color: black; }
+        .cvss-low { background: #28a745; color: white; }
+        .cvss-none { background: #6c757d; color: white; }
+        .cve-description {
+            font-size: 14px;
+            color: var(--color-text-secondary);
+            line-height: 1.5;
+            margin: 8px 0;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .cve-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--color-text-secondary);
+            flex-wrap: wrap;
+        }
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .stat-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--color-text-secondary);
+            margin-bottom: 4px;
+        }
+        .stat-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--color-text-primary);
+        }
+        .host-subtitle {
+            font-size: 14px;
+            color: var(--color-text-secondary);
+            margin-top: 4px;
         }
     </style>
 </head>
@@ -281,12 +413,36 @@
             </div>
             <div id="details-content">Loading details...</div>
         </div>
+
+        <!-- CVE List Panel (hidden by default) -->
+        <div id="cve-list-panel" class="details-panel" style="display: none;">
+            <div class="details-header">
+                <div>
+                    <h1 class="details-title" id="cve-list-host-name">System Vulnerabilities</h1>
+                    <div class="host-subtitle" id="cve-list-subtitle"></div>
+                </div>
+                <button id="back-to-host-details" class="back-button">← Back to Host Details</button>
+            </div>
+            <div id="cve-list-content">Loading CVEs...</div>
+        </div>
+
+        <!-- CVE Details Panel (hidden by default) -->
+        <div id="cve-details-panel" class="details-panel" style="display: none;">
+            <div class="details-header">
+                <div>
+                    <h1 class="details-title" id="cve-details-title">CVE Details</h1>
+                    <div class="host-subtitle" id="cve-details-subtitle"></div>
+                </div>
+                <button id="back-to-cve-list" class="back-button">← Back to CVE List</button>
+            </div>
+            <div id="cve-details-content">Loading CVE details...</div>
+        </div>
     </div>
 
     <script type="module">
         // INLINE DETAILS VERSION - Click host names to view details inline
-        console.log("=== Host Inventory Carousel - INLINE DETAILS DEBUG v2 ===");
-        console.log("💡 Click any host name to view details inline");
+        console.log("=== Host Inventory Carousel v7 - Full Inline Navigation ===");
+        console.log("💡 Host → CVEs → CVE Details - All inline!");
         console.log("🐛 Debug logging enabled - check for detailed error messages");
         console.log("Loading App SDK...");
 
@@ -393,7 +549,7 @@
                     </div>
                 `;
                 container.appendChild(hostCard);
-                
+
                 // Add click handler to host name to show details inline
                 const hostNameEl = hostCard.querySelector(".host-name");
                 console.log("🔧 Attaching click handler to:", host.display_name || host.id, "- Element found:", !!hostNameEl);
@@ -484,7 +640,7 @@
                 carouselView.style.display = "none";
                 detailsPanel.classList.add("visible");
                 detailsHostName.textContent = host.display_name || host.fqdn || host.id || "Host Details";
-                
+
                 console.log("✅ UI toggled - carousel hidden, details panel visible");
 
                 // Fetch detailed information
@@ -515,7 +671,7 @@
                 console.log("🎯 Final hostDetails object:", hostDetails);
                 console.log("🎯 hostDetails has id?", !!hostDetails?.id);
                 console.log("🎯 hostDetails has display_name?", !!hostDetails?.display_name);
-                
+
                 // Render the details
                 console.log("🎨 Calling renderHostDetails...");
                 renderHostDetails(hostDetails, detailsContent);
@@ -526,7 +682,7 @@
                 console.error("❌ Error stack:", error.stack);
                 const errorContainer = document.getElementById("details-content");
                 if (errorContainer) {
-                    errorContainer.innerHTML = 
+                    errorContainer.innerHTML =
                         `<div class="error">Failed to load host details: ${escapeHtml(error.message)}<br><pre style="font-size: 10px; margin-top: 10px;">${escapeHtml(error.stack || "No stack trace")}</pre></div>`;
                 }
             }
@@ -535,13 +691,13 @@
         function renderHostDetails(host, container) {
             console.log("🎨 renderHostDetails CALLED with host:", host);
             console.log("🎨 container element:", container);
-            
+
             if (!host || !host.id) {
                 console.error("❌ Invalid host data passed to renderHostDetails:", host);
                 container.innerHTML = `<div class="error">Invalid host data - no ID found</div>`;
                 return;
             }
-            
+
             console.log("✅ Host data is valid, rendering...");
             try {
                 container.innerHTML = `
@@ -634,8 +790,27 @@
                     </div>
                 </div>
                 ` : ""}
+
+                <div class="actions-section">
+                    <div class="actions-title">Actions</div>
+                    <div class="action-buttons">
+                        <button id="view-cves-btn" class="action-button" data-host-id="${escapeHtml(host.id || "")}">
+                            🛡️ View CVEs
+                        </button>
+                    </div>
+                </div>
             `;
                 console.log("✅ HTML rendered successfully");
+
+                // Attach event listener to View CVEs button
+                const viewCvesBtn = container.querySelector("#view-cves-btn");
+                if (viewCvesBtn) {
+                    const hostId = viewCvesBtn.getAttribute("data-host-id");
+                    viewCvesBtn.addEventListener("click", async () => {
+                        console.log("🛡️ View CVEs clicked for host:", hostId);
+                        showCVEList(hostId);
+                    });
+                }
             } catch (renderError) {
                 console.error("❌❌❌ ERROR during HTML rendering:", renderError);
                 console.error("❌ Render error message:", renderError.message);
@@ -741,6 +916,220 @@
                 container.innerHTML = `<div class="error-message">Error: ${escapeHtml(error.message)}</div>`;
             }
         };
+
+        // CVE List Functions
+        let currentHostForCVEs = null;
+
+        async function showCVEList(hostId) {
+            console.log("📊 Loading CVE list for host:", hostId);
+            currentHostForCVEs = hostId;
+
+            // Hide other views, show CVE list
+            document.getElementById("carousel-view").style.display = "none";
+            document.getElementById("details-panel").style.display = "none";
+            document.getElementById("cve-list-panel").style.display = "block";
+            document.getElementById("cve-details-panel").style.display = "none";
+
+            const content = document.getElementById("cve-list-content");
+            content.innerHTML = `<div class="loading">Loading CVEs...</div>`;
+
+            try {
+                const result = await app.callServerTool({
+                    name: "vulnerability__get_system_cves",
+                    arguments: { system_uuid: hostId }
+                });
+
+                // Parse result
+                let cveData;
+                if (result?.structuredContent?.result) {
+                    if (typeof result.structuredContent.result === 'string') {
+                        // Error string
+                        const errorText = result.structuredContent.result;
+                        if (errorText.includes('404') || errorText.includes('inventory_id must exist')) {
+                            content.innerHTML = `<div class="error-message">⚠️ This system hasn't been scanned for vulnerabilities yet.</div>`;
+                            return;
+                        }
+                        content.innerHTML = `<div class="error-message">Error: ${escapeHtml(errorText)}</div>`;
+                        return;
+                    }
+                    cveData = result.structuredContent.result;
+                } else {
+                    content.innerHTML = `<div class="error-message">No CVE data received</div>`;
+                    return;
+                }
+
+                renderCVEList(cveData);
+            } catch (error) {
+                console.error("❌ Error loading CVEs:", error);
+                content.innerHTML = `<div class="error-message">Error loading CVEs: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        function renderCVEList(cveData) {
+            const data = cveData.data || [];
+            const content = document.getElementById("cve-list-content");
+
+            if (data.length === 0) {
+                content.innerHTML = `<div class="empty-state">No CVEs found for this system</div>`;
+                return;
+            }
+
+            let html = `<div class="cve-list">`;
+            data.forEach(cve => {
+                const attrs = cve.attributes || {};
+                const cveId = cve.id || attrs.synopsis || "Unknown CVE";
+                const severity = getSeverityLabel(attrs.cvss3_score || attrs.cvss2_score, attrs.severity);
+                const severityClass = getSeverityClass(attrs.cvss3_score || attrs.cvss2_score, attrs.severity);
+                const cvssScore = parseFloat(attrs.cvss3_score || attrs.cvss2_score || 0);
+                const description = attrs.description || attrs.synopsis || "";
+                const publicDate = attrs.public_date ? new Date(attrs.public_date).toLocaleDateString() : "N/A";
+
+                html += `
+                    <div class="cve-card">
+                        <div class="cve-header">
+                            <span class="cve-id" data-cve-id="${escapeHtml(cveId)}">${escapeHtml(cveId)}</span>
+                            <span class="cvss-badge ${severityClass}">${severity} ${cvssScore > 0 ? cvssScore.toFixed(1) : ""}</span>
+                        </div>
+                        <div class="cve-description">${escapeHtml(description.substring(0, 200))}${description.length > 200 ? '...' : ''}</div>
+                        <div class="cve-meta">
+                            <span>📅 ${publicDate}</span>
+                            ${attrs.impact ? `<span>💥 ${escapeHtml(attrs.impact)}</span>` : ''}
+                            ${attrs.known_exploit ? '<span>⚠️ Known Exploit</span>' : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+
+            content.innerHTML = html;
+
+            // Attach click handlers
+            content.querySelectorAll(".cve-id").forEach(el => {
+                el.addEventListener("click", () => showCVEDetails(el.getAttribute("data-cve-id")));
+            });
+        }
+
+        async function showCVEDetails(cveId) {
+            console.log("🔍 Loading CVE details for:", cveId);
+
+            // Hide other views, show CVE details
+            document.getElementById("cve-list-panel").style.display = "none";
+            document.getElementById("cve-details-panel").style.display = "block";
+
+            const content = document.getElementById("cve-details-content");
+            content.innerHTML = `<div class="loading">Loading CVE details...</div>`;
+
+            try {
+                const result = await app.callServerTool({
+                    name: "vulnerability__get_cve",
+                    arguments: { cve: cveId }
+                });
+
+                let cveData;
+                if (result?.structuredContent?.result) {
+                    cveData = result.structuredContent.result;
+                } else if (result?.structuredContent) {
+                    cveData = result.structuredContent;
+                } else {
+                    throw new Error("No structured content in response");
+                }
+
+                renderCVEDetails(cveData);
+            } catch (error) {
+                console.error("❌ Error loading CVE details:", error);
+                content.innerHTML = `<div class="error-message">Error loading CVE details: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        function renderCVEDetails(cveData) {
+            const data = cveData.data || cveData;
+            const attrs = data.attributes || data;
+            const cveId = data.id || attrs.id;
+
+            document.getElementById("cve-details-title").textContent = cveId;
+
+            const content = document.getElementById("cve-details-content");
+            const severity = getSeverityLabel(attrs.cvss3_score || attrs.cvss2_score, attrs.severity);
+            const severityClass = getSeverityClass(attrs.cvss3_score || attrs.cvss2_score, attrs.severity);
+            const cvssScore = parseFloat(attrs.cvss3_score || attrs.cvss2_score || 0);
+
+            let html = `
+                <div class="stat-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Severity</div>
+                        <div class="stat-value"><span class="cvss-badge ${severityClass}">${severity}</span></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">CVSS Score</div>
+                        <div class="stat-value">${cvssScore > 0 ? cvssScore.toFixed(1) : "N/A"}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Public Date</div>
+                        <div class="stat-value">${attrs.public_date ? new Date(attrs.public_date).toLocaleDateString() : "N/A"}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Impact</div>
+                        <div class="stat-value">${escapeHtml(attrs.impact || "N/A")}</div>
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <div class="section-title">Description</div>
+                    <p style="line-height: 1.6; white-space: pre-wrap;">${escapeHtml(attrs.description || attrs.synopsis || "No description available.")}</p>
+                </div>
+
+                ${attrs.advisories_list && attrs.advisories_list.length > 0 ? `
+                <div class="detail-section">
+                    <div class="section-title">Available Advisories</div>
+                    ${attrs.advisories_list.map(advisory => {
+                        const advisoryId = advisory.split('/').pop();
+                        return `<a href="${advisory}" target="_blank" style="display: block; margin: 8px 0; color: var(--color-primary);">📦 ${escapeHtml(advisoryId)}</a>`;
+                    }).join('')}
+                </div>
+                ` : ""}
+
+                <div class="detail-section">
+                    <div class="section-title">External Links</div>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                        ${data.url ? `<a href="${data.url}" target="_blank" class="action-button" style="text-decoration: none;">🖥️ Red Hat Console</a>` : ""}
+                        <a href="https://access.redhat.com/security/cve/${escapeHtml(cveId)}" target="_blank" class="action-button" style="text-decoration: none;">📋 Security Portal</a>
+                        <a href="https://nvd.nist.gov/vuln/detail/${escapeHtml(cveId)}" target="_blank" class="action-button" style="text-decoration: none;">🔒 NVD Database</a>
+                    </div>
+                </div>
+            `;
+
+            content.innerHTML = html;
+        }
+
+        function getSeverityClass(cvssScore, severity) {
+            const score = parseFloat(cvssScore) || 0;
+            if (score >= 9.0 || severity === 'Critical') return 'cvss-critical';
+            if (score >= 7.0 || severity === 'Important') return 'cvss-important';
+            if (score >= 4.0 || severity === 'Moderate') return 'cvss-moderate';
+            if (score > 0 || severity === 'Low') return 'cvss-low';
+            return 'cvss-none';
+        }
+
+        function getSeverityLabel(cvssScore, severity) {
+            if (severity) return severity;
+            const score = parseFloat(cvssScore) || 0;
+            if (score >= 9.0) return 'Critical';
+            if (score >= 7.0) return 'Important';
+            if (score >= 4.0) return 'Moderate';
+            if (score > 0) return 'Low';
+            return 'None';
+        }
+
+        // Back button handlers
+        document.getElementById("back-to-host-details").addEventListener("click", () => {
+            document.getElementById("cve-list-panel").style.display = "none";
+            document.getElementById("details-panel").style.display = "block";
+        });
+
+        document.getElementById("back-to-cve-list").addEventListener("click", () => {
+            document.getElementById("cve-details-panel").style.display = "none";
+            document.getElementById("cve-list-panel").style.display = "block";
+        });
 
         app.onhostcontextchanged = (params) => {
             if (params.theme) {

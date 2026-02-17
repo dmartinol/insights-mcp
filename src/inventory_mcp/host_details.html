@@ -113,22 +113,130 @@
         .badge-warning { background: #fff3cd; color: #856404; }
         .badge-danger { background: #f8d7da; color: #721c24; }
         .badge-info { background: #d1ecf1; color: #0c5460; }
+
+        /* CVE List Styles */
+        .cve-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .cve-card {
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .cve-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .cve-id {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--color-primary);
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .cve-id:hover {
+            text-decoration: underline;
+        }
+        .cvss-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .cvss-critical { background: #dc3545; color: white; }
+        .cvss-important { background: #fd7e14; color: white; }
+        .cvss-moderate { background: #ffc107; color: black; }
+        .cvss-low { background: #28a745; color: white; }
+        .cvss-none { background: #6c757d; color: white; }
+        .cve-description {
+            font-size: 14px;
+            color: var(--color-text-secondary);
+            line-height: 1.5;
+            margin: 8px 0;
+        }
+        .cve-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--color-text-secondary);
+        }
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .stat-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--color-text-secondary);
+            margin-bottom: 4px;
+        }
+        .stat-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--color-text-primary);
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1 id="host-title">Host Details</h1>
-            <button class="back-btn" id="back-btn">← Back to List</button>
+        <!-- Host Details View -->
+        <div id="host-details-view">
+            <div class="header">
+                <h1 id="host-title">Host Details</h1>
+                <button class="back-btn" id="back-btn">← Back to List</button>
+            </div>
+            <div id="content">
+                <div class="loading">Loading host details...</div>
+            </div>
         </div>
-        <div id="content">
-            <div class="loading">Loading host details...</div>
+
+        <!-- CVE List View (hidden by default) -->
+        <div id="cve-list-view" style="display: none;">
+            <div class="header">
+                <div>
+                    <h1 id="cve-list-title">System Vulnerabilities</h1>
+                    <div class="detail-label" id="cve-list-subtitle"></div>
+                </div>
+                <button class="back-btn" id="back-to-host-btn">← Back to Host Details</button>
+            </div>
+            <div id="cve-list-content">
+                <div class="loading">Loading CVEs...</div>
+            </div>
+        </div>
+
+        <!-- CVE Details View (hidden by default) -->
+        <div id="cve-details-view" style="display: none;">
+            <div class="header">
+                <div>
+                    <h1 id="cve-details-title">CVE Details</h1>
+                    <div class="detail-label" id="cve-details-subtitle"></div>
+                </div>
+                <button class="back-btn" id="back-to-cve-list-btn">← Back to CVE List</button>
+            </div>
+            <div id="cve-details-content">
+                <div class="loading">Loading CVE details...</div>
+            </div>
         </div>
     </div>
 
     <script type="module">
         console.log("=== Host Details UI v2 (debug mode) ===");
-        
+
         // Define fallback App class
         class MockApp {
             constructor(config) {
@@ -143,10 +251,10 @@
                 console.log("MockApp.callServerTool() - no implementation", params);
             }
         }
-        
+
         let App = MockApp;
         let app;
-        
+
         // Load SDK asynchronously
         try {
             const module = await import("https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps");
@@ -155,7 +263,7 @@
         } catch (e) {
             console.warn("❌ Failed to load SDK, using mock:", e.message);
         }
-        
+
         app = new App({ name: "Host Details", version: "1.0.0" });
 
         function escapeHtml(text) {
@@ -178,7 +286,7 @@
         function renderHostDetails(host) {
             const content = document.getElementById("content");
             const hostName = host.display_name || host.fqdn || host.id || "Unknown Host";
-            
+
             document.getElementById("host-title").textContent = hostName;
 
             let html = `
@@ -300,7 +408,7 @@
             console.log("Full result object:", result);
             console.log("result.structuredContent:", result.structuredContent);
             console.log("result.content:", result.content);
-            
+
             // Show debug info in UI
             const content = document.getElementById("content");
             content.innerHTML = `
@@ -312,7 +420,7 @@
                     </details>
                 </div>
             `;
-            
+
             try {
                 let data;
                 if (result.structuredContent?.result) {
@@ -355,16 +463,16 @@
 
                 // Handle both single host and array response
                 const host = data.results?.[0] || data;
-                
+
                 if (host && host.id) {
                     renderHostDetails(host);
                 } else {
-                    document.getElementById("content").innerHTML = 
+                    document.getElementById("content").innerHTML =
                         `<div class="error">No host data found</div>`;
                 }
             } catch (error) {
                 console.error("Error rendering host details:", error);
-                document.getElementById("content").innerHTML = 
+                document.getElementById("content").innerHTML =
                     `<div class="error">Error: ${escapeHtml(error.message)}</div>`;
             }
         };

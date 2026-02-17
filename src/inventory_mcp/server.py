@@ -31,15 +31,12 @@ mcp = InsightsMCP(
 
 # UI Resource URIs for registration (will be transformed by mount())
 # Carousel UI (inline-details: includes inline details view toggle)
-# Add timestamp to force cache bust on every server restart
-import time
-_CACHE_BUST = int(time.time())
-CAROUSEL_RESOURCE_URI = f"ui://hosts-carousel-inline-details-{_CACHE_BUST}"
-CAROUSEL_MOUNTED_URI = f"ui://inventory_/hosts-carousel-inline-details-{_CACHE_BUST}"
+CAROUSEL_RESOURCE_URI = "ui://hosts-carousel-v1"
+CAROUSEL_MOUNTED_URI = "ui://inventory_/hosts-carousel-v1"
 
 # Host Details UI
-DETAILS_RESOURCE_URI = "ui://host-details-v2"
-DETAILS_MOUNTED_URI = "ui://inventory_/host-details-v2"
+DETAILS_RESOURCE_URI = "ui://host-details-v1"
+DETAILS_MOUNTED_URI = "ui://inventory_/host-details-v1"
 
 
 def _load_carousel_html() -> str:
@@ -65,9 +62,7 @@ def _load_host_details_html() -> str:
         # Try using importlib.resources first (preferred for packages)
         if hasattr(importlib.resources, "files"):
             # Python 3.9+
-            return (
-                importlib.resources.files("inventory_mcp").joinpath("host_details.html").read_text(encoding="utf-8")
-            )
+            return importlib.resources.files("inventory_mcp").joinpath("host_details.html").read_text(encoding="utf-8")
         # Python 3.8 fallback
         return importlib.resources.read_text("inventory_mcp", "host_details.html", encoding="utf-8")
     except (FileNotFoundError, ModuleNotFoundError, AttributeError, TypeError):  # pylint: disable=broad-exception-caught
@@ -208,7 +203,7 @@ async def get_host_details(host_ids: str = "") -> dict[str, Any] | str:
             "message": "Please provide at least one host ID (UUID) to retrieve details.",
             "hint": "Click on a host name in the inventory carousel to view its details.",
         }
-    
+
     response = await mcp.insights_client.get(f"hosts/{host_ids}")
     if isinstance(response, str):
         return response

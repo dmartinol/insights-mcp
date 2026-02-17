@@ -155,7 +155,7 @@ class InsightsMCPServer(FastMCP):  # pylint: disable=too-many-instance-attribute
             website_url="https://console.redhat.com",
             # Required for MCP Apps (e.g., basic-hosts example)
             # Creates fresh transport per request without session tracking
-            stateless_http=True,
+            # stateless_http=True,
             **settings,
         )
         self.base_url = base_url
