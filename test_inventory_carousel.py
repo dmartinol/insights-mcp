@@ -18,7 +18,13 @@ import os
 import sys
 from pathlib import Path
 
-from inventory_mcp.server import MOUNTED_RESOURCE_URI, RESOURCE_URI, mcp
+from inventory_mcp.server import (
+    CAROUSEL_MOUNTED_URI,
+    CAROUSEL_RESOURCE_URI,
+    DETAILS_MOUNTED_URI,
+    DETAILS_RESOURCE_URI,
+    mcp,
+)
 
 # Add src directory to path for imports
 parent_dir = Path(__file__).parent
@@ -51,16 +57,21 @@ async def test_resource_registration():
     """Test that the UI resource is registered."""
     print("\n=== Testing Resource Registration ===")
 
-    # Verify RESOURCE_URI is correctly defined
-    print(f"RESOURCE_URI: {RESOURCE_URI}")
-    print(f"MOUNTED_RESOURCE_URI: {MOUNTED_RESOURCE_URI}")
-
-    # After mounting with "inventory_" prefix, the URI becomes ui://inventory_/hosts-carousel-v5
-    expected_resource_uri = "ui://hosts-carousel-v5"
-    if not RESOURCE_URI.endswith("hosts-carousel-v5"):
-        print(f"✗ RESOURCE_URI is incorrect: {RESOURCE_URI} (expected: {expected_resource_uri})")
+    # Verify resource URIs are correctly defined
+    print(f"CAROUSEL_RESOURCE_URI: {CAROUSEL_RESOURCE_URI}")
+    print(f"CAROUSEL_MOUNTED_URI: {CAROUSEL_MOUNTED_URI}")
+    print(f"DETAILS_RESOURCE_URI: {DETAILS_RESOURCE_URI}")
+    print(f"DETAILS_MOUNTED_URI: {DETAILS_MOUNTED_URI}")
+    
+    # After mounting with "inventory_" prefix, check for valid carousel URIs
+    # Accept any URI containing "hosts-carousel" (allows timestamp suffixes for cache busting)
+    if "hosts-carousel" not in CAROUSEL_RESOURCE_URI:
+        print(f"✗ CAROUSEL_RESOURCE_URI is incorrect: {CAROUSEL_RESOURCE_URI}")
         return False
-    print("✓ RESOURCE_URI is correctly defined")
+    if not DETAILS_RESOURCE_URI.endswith(("host-details-v1", "host-details-v2")):
+        print(f"✗ DETAILS_RESOURCE_URI is incorrect: {DETAILS_RESOURCE_URI}")
+        return False
+    print("✓ Resource URIs are correctly defined")
 
     # Check if the resource function exists (it should be registered by @mcp.resource decorator)
     # The function name should be hosts_carousel_view based on our implementation
@@ -122,17 +133,17 @@ async def test_tool_metadata():
             ui_meta = meta.get("ui") or meta.get("ui/resourceUri")
             if ui_meta:
                 resource_uri = ui_meta.get("resourceUri") if isinstance(ui_meta, dict) else ui_meta
-                if resource_uri == MOUNTED_RESOURCE_URI:
+                if resource_uri == CAROUSEL_MOUNTED_URI:
                     print(f"✓ Tool metadata includes correct UI resource URI: {resource_uri}")
                     return True
                 else:
                     print(f"✗ Tool metadata has incorrect resource URI: {resource_uri}")
-                    print(f"  Expected: {MOUNTED_RESOURCE_URI} (mounted URI with prefix)")
+                    print(f"  Expected: {CAROUSEL_MOUNTED_URI} (carousel mounted URI)")
                     return False
 
         # Try legacy format
         legacy_uri = meta.get("ui/resourceUri")
-        if legacy_uri == MOUNTED_RESOURCE_URI:
+        if legacy_uri == CAROUSEL_MOUNTED_URI:
             print(f"✓ Tool metadata includes correct UI resource URI (legacy format): {legacy_uri}")
             return True
 

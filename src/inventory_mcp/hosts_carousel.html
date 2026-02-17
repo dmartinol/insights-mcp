@@ -1,9 +1,22 @@
 <!DOCTYPE html>
+<!--
+═══════════════════════════════════════════════════════════════════════
+  HOST INVENTORY CAROUSEL - INLINE DETAILS VERSION
+  Last Updated: Feb 17, 2026
+  Features: Click host names to view details inline (no separate UI)
+  If you see "v5" or "v6" in console, ChatGPT is serving CACHED HTML!
+  → Start a NEW ChatGPT session to force fresh fetch
+═══════════════════════════════════════════════════════════════════════
+-->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Host Inventory Carousel v5</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="cache-version" content="inline-details-feb-17-2026">
+    <title>Host Inventory Carousel - Debug v2 (Enhanced Error Logging)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
@@ -84,7 +97,13 @@
             font-size: 24px;
             font-weight: 600;
             margin-bottom: 8px;
-            color: var(--color-text-primary);
+            color: var(--color-primary);
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .host-name:hover {
+            opacity: 0.7;
+            text-decoration: underline;
         }
         .host-id {
             font-size: 12px;
@@ -132,6 +151,62 @@
             margin-top: 24px;
             padding-top: 16px;
             border-top: 1px solid var(--color-border);
+        }
+        .details-panel {
+            display: none;
+            animation: fadeIn 0.3s ease-in;
+        }
+        .details-panel.visible {
+            display: block;
+        }
+        .details-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--color-border);
+        }
+        .details-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--color-text-primary);
+        }
+        .back-button {
+            padding: 8px 16px;
+            background: var(--color-border);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        .back-button:hover {
+            background: var(--color-text-secondary);
+            color: white;
+        }
+        .details-section {
+            margin-bottom: 24px;
+            padding: 20px;
+            background: var(--color-bg-secondary);
+            border-radius: 12px;
+        }
+        .details-section-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--color-text-primary);
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
         .nav-button {
             background: var(--color-primary);
@@ -183,7 +258,8 @@
 </head>
 <body>
     <div class="container">
-        <div class="carousel-wrapper">
+        <!-- Carousel View -->
+        <div id="carousel-view" class="carousel-wrapper">
             <div class="carousel-header">
                 <div class="carousel-title">Host Inventory</div>
                 <div class="carousel-counter" id="counter">Loading...</div>
@@ -196,11 +272,22 @@
                 <button class="nav-button" id="next-btn" onclick="nextHost()" disabled>Next →</button>
             </div>
         </div>
+
+        <!-- Details Panel (hidden by default) -->
+        <div id="details-panel" class="details-panel">
+            <div class="details-header">
+                <h1 class="details-title" id="details-host-name">Host Details</h1>
+                <button id="back-to-list" class="back-button">← Back to List</button>
+            </div>
+            <div id="details-content">Loading details...</div>
+        </div>
     </div>
 
     <script type="module">
-        // v5: Fixed top-level await syntax error
-        console.log("=== Host Inventory Carousel v5 ===");
+        // INLINE DETAILS VERSION - Click host names to view details inline
+        console.log("=== Host Inventory Carousel - INLINE DETAILS DEBUG v2 ===");
+        console.log("💡 Click any host name to view details inline");
+        console.log("🐛 Debug logging enabled - check for detailed error messages");
         console.log("Loading App SDK...");
 
         // Define fallback App class in case SDK fails to load
@@ -224,7 +311,9 @@
 
         // Load SDK asynchronously (avoid top-level await)
         try {
-            const module = await import("https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps");
+            // Add cache-busting query parameter to force fresh SDK load
+            const cacheBust = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+            const module = await import(`https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps?v=${cacheBust}`);
             App = module.App;
             console.log("✅ SDK loaded successfully");
         } catch (e) {
@@ -304,6 +393,24 @@
                     </div>
                 `;
                 container.appendChild(hostCard);
+                
+                // Add click handler to host name to show details inline
+                const hostNameEl = hostCard.querySelector(".host-name");
+                console.log("🔧 Attaching click handler to:", host.display_name || host.id, "- Element found:", !!hostNameEl);
+                if (hostNameEl && host.id) {
+                    hostNameEl.addEventListener("click", async () => {
+                        console.log("🖱️ Host name clicked:", host.display_name || host.id);
+                        console.log("📞 Fetching host details for ID:", host.id);
+                        try {
+                            await showHostDetails(host);
+                        } catch (error) {
+                            console.error("💥 Error in click handler:", error);
+                            alert(`Error showing details: ${error.message}`);
+                        }
+                    });
+                } else {
+                    console.warn("⚠️ Could not attach click handler - hostNameEl:", hostNameEl, "host.id:", host.id);
+                }
             });
         }
 
@@ -352,6 +459,196 @@
                 showHost(currentIndex + 1);
             }
         };
+
+        async function showHostDetails(host) {
+            console.log("🔍 showHostDetails called for host:", host);
+            try {
+                // Show loading state
+                const detailsPanel = document.getElementById("details-panel");
+                const carouselView = document.getElementById("carousel-view");
+                const detailsContent = document.getElementById("details-content");
+                const detailsHostName = document.getElementById("details-host-name");
+
+                console.log("🔧 DOM elements found:", {
+                    detailsPanel: !!detailsPanel,
+                    carouselView: !!carouselView,
+                    detailsContent: !!detailsContent,
+                    detailsHostName: !!detailsHostName
+                });
+
+                if (!detailsPanel || !carouselView || !detailsContent || !detailsHostName) {
+                    throw new Error("Required DOM elements not found!");
+                }
+
+                detailsContent.innerHTML = '<div class="loading">Loading host details...</div>';
+                carouselView.style.display = "none";
+                detailsPanel.classList.add("visible");
+                detailsHostName.textContent = host.display_name || host.fqdn || host.id || "Host Details";
+                
+                console.log("✅ UI toggled - carousel hidden, details panel visible");
+
+                // Fetch detailed information
+                console.log("📞 Calling get_host_details with ID:", host.id);
+                const result = await app.callServerTool({
+                    name: "inventory__get_host_details",
+                    arguments: { host_ids: host.id }
+                });
+                console.log("✅ Tool call completed, result:", result);
+                console.log("🔍 result.structuredContent:", result.structuredContent);
+                console.log("🔍 result.structuredContent?.result:", result.structuredContent?.result);
+
+                // Parse the result
+                let detailsData;
+                if (result.structuredContent?.result) {
+                    console.log("📦 Using structuredContent.result path");
+                    detailsData = result.structuredContent.result;
+                } else if (result.structuredContent) {
+                    console.log("📦 Using structuredContent path");
+                    detailsData = result.structuredContent;
+                } else {
+                    console.error("❌ No structuredContent found!");
+                    throw new Error("Unexpected result format");
+                }
+
+                console.log("📦 Parsed detailsData:", detailsData);
+                const hostDetails = detailsData.results?.[0] || detailsData;
+                console.log("🎯 Final hostDetails object:", hostDetails);
+                console.log("🎯 hostDetails has id?", !!hostDetails?.id);
+                console.log("🎯 hostDetails has display_name?", !!hostDetails?.display_name);
+                
+                // Render the details
+                console.log("🎨 Calling renderHostDetails...");
+                renderHostDetails(hostDetails, detailsContent);
+                console.log("✅ renderHostDetails completed");
+            } catch (error) {
+                console.error("❌❌❌ EXCEPTION in showHostDetails:", error);
+                console.error("❌ Error message:", error.message);
+                console.error("❌ Error stack:", error.stack);
+                const errorContainer = document.getElementById("details-content");
+                if (errorContainer) {
+                    errorContainer.innerHTML = 
+                        `<div class="error">Failed to load host details: ${escapeHtml(error.message)}<br><pre style="font-size: 10px; margin-top: 10px;">${escapeHtml(error.stack || "No stack trace")}</pre></div>`;
+                }
+            }
+        }
+
+        function renderHostDetails(host, container) {
+            console.log("🎨 renderHostDetails CALLED with host:", host);
+            console.log("🎨 container element:", container);
+            
+            if (!host || !host.id) {
+                console.error("❌ Invalid host data passed to renderHostDetails:", host);
+                container.innerHTML = `<div class="error">Invalid host data - no ID found</div>`;
+                return;
+            }
+            
+            console.log("✅ Host data is valid, rendering...");
+            try {
+                container.innerHTML = `
+                <div class="details-section">
+                    <div class="details-section-title">Basic Information</div>
+                    <div class="details-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Display Name</div>
+                            <div class="detail-value">${escapeHtml(host.display_name || "N/A")}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">FQDN</div>
+                            <div class="detail-value">${escapeHtml(host.fqdn || "N/A")}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Host ID</div>
+                            <div class="detail-value" style="font-family: monospace; font-size: 12px;">${escapeHtml(host.id || "N/A")}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Status</div>
+                            <div class="detail-value">
+                                <span class="staleness-badge staleness-${host.stale_timestamp ? "fresh" : "unknown"}">
+                                    ${host.stale_timestamp ? "Active" : "Unknown"}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                ${host.system_profile ? `
+                <div class="details-section">
+                    <div class="details-section-title">System Profile</div>
+                    <div class="details-grid">
+                        ${host.system_profile.operating_system ? `
+                        <div class="detail-item">
+                            <div class="detail-label">Operating System</div>
+                            <div class="detail-value">${escapeHtml(host.system_profile.operating_system.name || "N/A")} ${escapeHtml(host.system_profile.operating_system.major || "")}.${escapeHtml(host.system_profile.operating_system.minor || "")}</div>
+                        </div>
+                        ` : ""}
+                        ${host.system_profile.cpu_model ? `
+                        <div class="detail-item">
+                            <div class="detail-label">CPU Model</div>
+                            <div class="detail-value">${escapeHtml(host.system_profile.cpu_model)}</div>
+                        </div>
+                        ` : ""}
+                        ${host.system_profile.cpu_count ? `
+                        <div class="detail-item">
+                            <div class="detail-label">CPU Count</div>
+                            <div class="detail-value">${host.system_profile.cpu_count} cores</div>
+                        </div>
+                        ` : ""}
+                        ${host.system_profile.system_memory_bytes ? `
+                        <div class="detail-item">
+                            <div class="detail-label">Memory</div>
+                            <div class="detail-value">${(host.system_profile.system_memory_bytes / (1024**3)).toFixed(2)} GB</div>
+                        </div>
+                        ` : ""}
+                        ${host.system_profile.infrastructure_type ? `
+                        <div class="detail-item">
+                            <div class="detail-label">Infrastructure</div>
+                            <div class="detail-value">${escapeHtml(host.system_profile.infrastructure_type)}</div>
+                        </div>
+                        ` : ""}
+                        ${host.system_profile.infrastructure_vendor ? `
+                        <div class="detail-item">
+                            <div class="detail-label">Vendor</div>
+                            <div class="detail-value">${escapeHtml(host.system_profile.infrastructure_vendor)}</div>
+                        </div>
+                        ` : ""}
+                    </div>
+                </div>
+                ` : ""}
+
+                ${host.created || host.updated ? `
+                <div class="details-section">
+                    <div class="details-section-title">Timestamps</div>
+                    <div class="details-grid">
+                        ${host.created ? `
+                        <div class="detail-item">
+                            <div class="detail-label">Created</div>
+                            <div class="detail-value">${new Date(host.created).toLocaleString()}</div>
+                        </div>
+                        ` : ""}
+                        ${host.updated ? `
+                        <div class="detail-item">
+                            <div class="detail-label">Last Updated</div>
+                            <div class="detail-value">${new Date(host.updated).toLocaleString()}</div>
+                        </div>
+                        ` : ""}
+                    </div>
+                </div>
+                ` : ""}
+            `;
+                console.log("✅ HTML rendered successfully");
+            } catch (renderError) {
+                console.error("❌❌❌ ERROR during HTML rendering:", renderError);
+                console.error("❌ Render error message:", renderError.message);
+                console.error("❌ Render error stack:", renderError.stack);
+                container.innerHTML = `<div class="error">Failed to render host details: ${escapeHtml(renderError.message)}</div>`;
+            }
+        }
+
+        // Back button handler
+        document.getElementById("back-to-list").addEventListener("click", () => {
+            document.getElementById("details-panel").classList.remove("visible");
+            document.getElementById("carousel-view").style.display = "block";
+        });
 
         // Keyboard navigation
         document.addEventListener("keydown", (e) => {

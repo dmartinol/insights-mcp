@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Host Details v2</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --font-sans: system-ui, -apple-system, sans-serif;
+            --color-text-primary: #333;
+            --color-text-secondary: #666;
+            --color-bg: #fff;
+            --color-border: #ddd;
+            --color-primary: #0066cc;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --color-text-primary: #eee;
+                --color-text-secondary: #999;
+                --color-bg: #1a1a1a;
+                --color-border: #444;
+                --color-primary: #4da6ff;
+            }
+        }
+        body {
+            font-family: var(--font-sans);
+            background: var(--color-bg);
+            color: var(--color-text-primary);
+            padding: 16px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--color-border);
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .back-btn {
+            padding: 8px 16px;
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .back-btn:hover {
+            opacity: 0.9;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--color-text-secondary);
+        }
+        .error {
+            padding: 16px;
+            background: #fee;
+            border: 1px solid #fcc;
+            border-radius: 4px;
+            color: #c33;
+        }
+        .section {
+            margin-bottom: 24px;
+            padding: 16px;
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--color-primary);
+        }
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 12px;
+        }
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .detail-label {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--color-text-secondary);
+        }
+        .detail-value {
+            font-size: 14px;
+            word-break: break-word;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .badge-danger { background: #f8d7da; color: #721c24; }
+        .badge-info { background: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 id="host-title">Host Details</h1>
+            <button class="back-btn" id="back-btn">← Back to List</button>
+        </div>
+        <div id="content">
+            <div class="loading">Loading host details...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        console.log("=== Host Details UI v2 (debug mode) ===");
+        
+        // Define fallback App class
+        class MockApp {
+            constructor(config) {
+                console.log("Using MockApp (SDK not available)");
+                this.config = config;
+                this.ontoolresult = null;
+            }
+            async connect() {
+                console.log("MockApp.connect() - no real connection");
+            }
+            async callServerTool(params) {
+                console.log("MockApp.callServerTool() - no implementation", params);
+            }
+        }
+        
+        let App = MockApp;
+        let app;
+        
+        // Load SDK asynchronously
+        try {
+            const module = await import("https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps");
+            App = module.App;
+            console.log("✅ SDK loaded successfully");
+        } catch (e) {
+            console.warn("❌ Failed to load SDK, using mock:", e.message);
+        }
+        
+        app = new App({ name: "Host Details", version: "1.0.0" });
+
+        function escapeHtml(text) {
+            if (text == null) return "N/A";
+            const div = document.createElement("div");
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return "N/A";
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleString();
+            } catch {
+                return dateString;
+            }
+        }
+
+        function renderHostDetails(host) {
+            const content = document.getElementById("content");
+            const hostName = host.display_name || host.fqdn || host.id || "Unknown Host";
+            
+            document.getElementById("host-title").textContent = hostName;
+
+            let html = `
+                <div class="section">
+                    <div class="section-title">Basic Information</div>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Display Name</div>
+                            <div class="detail-value">${escapeHtml(host.display_name)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">FQDN</div>
+                            <div class="detail-value">${escapeHtml(host.fqdn)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Host ID</div>
+                            <div class="detail-value" style="font-family: monospace; font-size: 11px;">${escapeHtml(host.id)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Staleness</div>
+                            <div class="detail-value">
+                                <span class="badge ${getStalenessClass(host.staleness)}">${escapeHtml(host.staleness || "unknown")}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+
+            if (host.provider_type || host.provider_id) {
+                html += `
+                    <div class="section">
+                        <div class="section-title">Cloud Provider</div>
+                        <div class="detail-grid">
+                            ${host.provider_type ? `
+                                <div class="detail-item">
+                                    <div class="detail-label">Provider</div>
+                                    <div class="detail-value">
+                                        <span class="badge badge-info">${escapeHtml(host.provider_type)}</span>
+                                    </div>
+                                </div>
+                            ` : ''}
+                            ${host.provider_id ? `
+                                <div class="detail-item">
+                                    <div class="detail-label">Provider ID</div>
+                                    <div class="detail-value" style="font-family: monospace; font-size: 11px;">${escapeHtml(host.provider_id)}</div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>`;
+            }
+
+            if (host.system_profile) {
+                const sp = host.system_profile;
+                html += `
+                    <div class="section">
+                        <div class="section-title">System Profile</div>
+                        <div class="detail-grid">
+                            ${sp.operating_system ? `
+                                <div class="detail-item">
+                                    <div class="detail-label">Operating System</div>
+                                    <div class="detail-value">${escapeHtml(sp.operating_system.name)} ${escapeHtml(sp.operating_system.major)}.${escapeHtml(sp.operating_system.minor)}</div>
+                                </div>
+                            ` : ''}
+                            ${sp.cpu_count ? `
+                                <div class="detail-item">
+                                    <div class="detail-label">CPU Cores</div>
+                                    <div class="detail-value">${sp.cpu_count}</div>
+                                </div>
+                            ` : ''}
+                            ${sp.system_memory_bytes ? `
+                                <div class="detail-item">
+                                    <div class="detail-label">Memory</div>
+                                    <div class="detail-value">${(sp.system_memory_bytes / (1024**3)).toFixed(2)} GB</div>
+                                </div>
+                            ` : ''}
+                            ${sp.arch ? `
+                                <div class="detail-item">
+                                    <div class="detail-label">Architecture</div>
+                                    <div class="detail-value">${escapeHtml(sp.arch)}</div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>`;
+            }
+
+            html += `
+                <div class="section">
+                    <div class="section-title">Timestamps</div>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Created</div>
+                            <div class="detail-value">${formatDate(host.created)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Last Updated</div>
+                            <div class="detail-value">${formatDate(host.updated)}</div>
+                        </div>
+                        ${host.stale_timestamp ? `
+                            <div class="detail-item">
+                                <div class="detail-label">Stale Timestamp</div>
+                                <div class="detail-value">${formatDate(host.stale_timestamp)}</div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>`;
+
+            content.innerHTML = html;
+        }
+
+        function getStalenessClass(staleness) {
+            const normalized = (staleness || "unknown").toLowerCase();
+            if (normalized === "fresh") return "badge-success";
+            if (normalized === "stale") return "badge-danger";
+            if (normalized === "stale_warning") return "badge-warning";
+            return "badge-info";
+        }
+
+        app.ontoolresult = (result) => {
+            console.log("🎉 ontoolresult CALLED!");
+            console.log("Full result object:", result);
+            console.log("result.structuredContent:", result.structuredContent);
+            console.log("result.content:", result.content);
+            
+            // Show debug info in UI
+            const content = document.getElementById("content");
+            content.innerHTML = `
+                <div class="section">
+                    <div class="section-title">🔍 Debug: ontoolresult called</div>
+                    <details open>
+                        <summary style="cursor: pointer; font-weight: bold; margin-bottom: 8px;">Raw result (click to collapse)</summary>
+                        <pre style="overflow: auto; max-height: 300px; font-size: 11px; background: #f5f5f5; padding: 8px; border-radius: 4px;">${escapeHtml(JSON.stringify(result, null, 2))}</pre>
+                    </details>
+                </div>
+            `;
+            
+            try {
+                let data;
+                if (result.structuredContent?.result) {
+                    console.log("✅ Extracting from structuredContent.result");
+                    data = result.structuredContent.result;
+                } else if (result.content?.[0]?.text) {
+                    console.log("✅ Extracting from content[0].text");
+                    try {
+                        data = JSON.parse(result.content[0].text);
+                    } catch (e) {
+                        console.error("Failed to parse result:", e);
+                        content.innerHTML += `<div class="error">Parse error: ${escapeHtml(e.message)}</div>`;
+                        return;
+                    }
+                } else {
+                    console.error("❌ No recognized data format in result");
+                    content.innerHTML += `<div class="error">No data found in result</div>`;
+                    return;
+                }
+
+                console.log("Parsed data:", data);
+                content.innerHTML += `
+                    <div class="section">
+                        <div class="section-title">✅ Parsed data</div>
+                        <pre style="overflow: auto; max-height: 200px; font-size: 11px; background: #f5f5f5; padding: 8px; border-radius: 4px;">${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+                    </div>
+                `;
+
+                // Handle error response (when called without host_ids)
+                if (data.error) {
+                    document.getElementById("content").innerHTML = `
+                        <div class="section">
+                            <div class="section-title">ℹ️ ${escapeHtml(data.error)}</div>
+                            <p style="margin-top: 12px;">${escapeHtml(data.message)}</p>
+                            ${data.hint ? `<p style="margin-top: 8px; color: var(--color-text-secondary);"><em>${escapeHtml(data.hint)}</em></p>` : ''}
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Handle both single host and array response
+                const host = data.results?.[0] || data;
+                
+                if (host && host.id) {
+                    renderHostDetails(host);
+                } else {
+                    document.getElementById("content").innerHTML = 
+                        `<div class="error">No host data found</div>`;
+                }
+            } catch (error) {
+                console.error("Error rendering host details:", error);
+                document.getElementById("content").innerHTML = 
+                    `<div class="error">Error: ${escapeHtml(error.message)}</div>`;
+            }
+        };
+
+        // Back button - call list_hosts to return to carousel
+        document.getElementById("back-btn").addEventListener("click", async () => {
+            console.log("Back button clicked - calling list_hosts");
+            try {
+                await app.callServerTool({
+                    name: "inventory__list_hosts",
+                    arguments: { per_page: 10 }
+                });
+            } catch (error) {
+                console.error("Failed to call list_hosts:", error);
+            }
+        });
+
+        // Initialize
+        (async () => {
+            try {
+                console.log("Connecting to MCP host...");
+                await app.connect();
+                console.log("✅ Connected");
+            } catch (error) {
+                console.error("❌ Failed to connect:", error);
+            }
+        })();
+    </script>
+</body>
+</html>

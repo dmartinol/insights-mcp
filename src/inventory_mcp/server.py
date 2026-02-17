@@ -29,15 +29,17 @@ mcp = InsightsMCP(
     """,
 )
 
-# UI Resource URI for registration (will be transformed by mount())
-# The resource is registered with this URI, but mount() will transform it
-# When mounted with prefix "inventory_", "ui://hosts-carousel-v5" becomes "ui://inventory_/hosts-carousel-v5"
-# v5: Fixed top-level await syntax error, added comprehensive logging
-RESOURCE_URI = "ui://hosts-carousel-v5"
+# UI Resource URIs for registration (will be transformed by mount())
+# Carousel UI (inline-details: includes inline details view toggle)
+# Add timestamp to force cache bust on every server restart
+import time
+_CACHE_BUST = int(time.time())
+CAROUSEL_RESOURCE_URI = f"ui://hosts-carousel-inline-details-{_CACHE_BUST}"
+CAROUSEL_MOUNTED_URI = f"ui://inventory_/hosts-carousel-inline-details-{_CACHE_BUST}"
 
-# URI that will exist AFTER mounting - this is what tool metadata should reference
-# The client will look for this URI when trying to fetch the UI
-MOUNTED_RESOURCE_URI = "ui://inventory_/hosts-carousel-v5"
+# Host Details UI
+DETAILS_RESOURCE_URI = "ui://host-details-v2"
+DETAILS_MOUNTED_URI = "ui://inventory_/host-details-v2"
 
 
 def _load_carousel_html() -> str:
@@ -57,12 +59,30 @@ def _load_carousel_html() -> str:
         return html_path.read_text(encoding="utf-8")
 
 
+def _load_host_details_html() -> str:
+    """Load the host details HTML from the dedicated file."""
+    try:
+        # Try using importlib.resources first (preferred for packages)
+        if hasattr(importlib.resources, "files"):
+            # Python 3.9+
+            return (
+                importlib.resources.files("inventory_mcp").joinpath("host_details.html").read_text(encoding="utf-8")
+            )
+        # Python 3.8 fallback
+        return importlib.resources.read_text("inventory_mcp", "host_details.html", encoding="utf-8")
+    except (FileNotFoundError, ModuleNotFoundError, AttributeError, TypeError):  # pylint: disable=broad-exception-caught
+        # Fallback to direct file read if importlib.resources doesn't work
+        html_path = Path(__file__).parent / "host_details.html"
+        return html_path.read_text(encoding="utf-8")
+
+
 # Embedded Host Carousel HTML for MCP App
 EMBEDDED_CAROUSEL_HTML = _load_carousel_html()
+EMBEDDED_HOST_DETAILS_HTML = _load_host_details_html()
 
 
 @mcp.resource(
-    RESOURCE_URI,
+    CAROUSEL_RESOURCE_URI,
     mime_type="text/html;profile=mcp-app",
     meta={"ui": {"csp": {"resourceDomains": ["https://unpkg.com"]}}},
 )
@@ -71,17 +91,27 @@ def hosts_carousel_view() -> str:
     return EMBEDDED_CAROUSEL_HTML
 
 
+@mcp.resource(
+    DETAILS_RESOURCE_URI,
+    mime_type="text/html;profile=mcp-app",
+    meta={"ui": {"csp": {"resourceDomains": ["https://unpkg.com"]}}},
+)
+def host_details_view() -> str:
+    """Host details UI resource for displaying detailed host information."""
+    return EMBEDDED_HOST_DETAILS_HTML
+
+
 @mcp.tool(
     annotations={"readOnlyHint": True},
     meta={
         "ui": {
             # Use the URI AFTER mounting, since that's what the client will see
-            "resourceUri": MOUNTED_RESOURCE_URI,
+            "resourceUri": CAROUSEL_MOUNTED_URI,
             # Optional: Add display hints for ChatGPT
             "displayHints": {"title": "Host Inventory", "description": "Browse your registered hosts"},
         },
         # Legacy support for clients that expect flattened format
-        "ui/resourceUri": MOUNTED_RESOURCE_URI,
+        "ui/resourceUri": CAROUSEL_MOUNTED_URI,
     },
 )
 async def list_hosts(  # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -151,8 +181,17 @@ async def list_hosts(  # pylint: disable=too-many-arguments,too-many-positional-
     return response
 
 
-@mcp.tool(annotations={"readOnlyHint": True})
-async def get_host_details(host_ids: str) -> dict[str, Any] | str:
+@mcp.tool(
+    annotations={"readOnlyHint": True},
+    meta={
+        "ui": {
+            "resourceUri": DETAILS_MOUNTED_URI,
+            "displayHints": {"title": "Host Details", "description": "View detailed information about a host"},
+        },
+        "ui/resourceUri": DETAILS_MOUNTED_URI,
+    },
+)
+async def get_host_details(host_ids: str = "") -> dict[str, Any] | str:
     """Get detailed information for specific hosts by their IDs.
 
     Returns comprehensive host data including identifiers (insights_id, satellite_id, bios_uuid),
@@ -161,8 +200,15 @@ async def get_host_details(host_ids: str) -> dict[str, Any] | str:
     system_profile data.
 
     Args:
-        host_ids: Comma-separated list of host IDs (UUIDs) to retrieve.
+        host_ids: Comma-separated list of host IDs (UUIDs) to retrieve. If empty, returns an error message.
     """
+    if not host_ids or not host_ids.strip():
+        return {
+            "error": "No host ID provided",
+            "message": "Please provide at least one host ID (UUID) to retrieve details.",
+            "hint": "Click on a host name in the inventory carousel to view its details.",
+        }
+    
     response = await mcp.insights_client.get(f"hosts/{host_ids}")
     if isinstance(response, str):
         return response
