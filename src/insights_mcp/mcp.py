@@ -129,12 +129,13 @@ class InsightsMCP(FastMCP):
             tool.name
             for tool in tools
             if (
-                hasattr(tool, "annotations")
-                and tool.annotations
-                and hasattr(tool.annotations, "readOnlyHint")
-                and tool.annotations.readOnlyHint is False
+                hasattr(t, "annotations")
+                and t.annotations
+                and hasattr(t.annotations, "readOnlyHint")
+                and t.annotations.readOnlyHint is False
             )
         ]
 
         for tool_name in tools_to_remove:
-            self.remove_tool(tool_name)
+            if tool_name:
+                self.remove_tool(tool_name)
