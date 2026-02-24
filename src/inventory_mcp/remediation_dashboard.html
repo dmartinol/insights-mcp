@@ -1,0 +1,1525 @@
+<!DOCTYPE html>
+<!--
+  Remediation Dashboard - Orchestration in UI.
+  Entry: single device (UID or name) or no device (all fleet). Top bar shows scope.
+  CVEs load on open; CVE buttons by severity; overlay: explanation + affected devices; Remediate with save.
+  Requests tools via ext-apps app.callServerTool(); receives results via return value and ontoolresult. Safe-restored: scope label, modal CSS, runInit/device handling.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Remediation Dashboard</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --font-sans: system-ui, -apple-system, sans-serif;
+            --color-text-primary: #333;
+            --color-text-secondary: #666;
+            --color-bg: #fff;
+            --color-bg-secondary: #f5f5f5;
+            --color-border: #ddd;
+            --color-primary: #0066cc;
+            --color-success: #28a745;
+            --color-warning: #ffc107;
+            --color-danger: #dc3545;
+            --severity-critical: #dc3545;
+            --severity-high: #fd7e14;
+            --severity-medium: #ffc107;
+            --severity-low: #6c757d;
+        }
+        [data-theme="dark"] {
+            --color-text-primary: #eee;
+            --color-text-secondary: #999;
+            --color-bg: #1a1a1a;
+            --color-bg-secondary: #252525;
+            --color-border: #444;
+            --color-primary: #4da6ff;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme]) {
+                --color-text-primary: #eee;
+                --color-text-secondary: #999;
+                --color-bg: #1a1a1a;
+                --color-bg-secondary: #252525;
+                --color-border: #444;
+                --color-primary: #4da6ff;
+            }
+        }
+        body { font-family: var(--font-sans); background: var(--color-bg); color: var(--color-text-primary); padding: 16px; min-height: 100vh; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .dashboard-card {
+            background: var(--color-bg-secondary);
+            border: 1px solid var(--color-border);
+            border-radius: 12px;
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+        .top-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .top-bar-title { font-size: 18px; font-weight: 700; }
+        .top-bar-scope {
+            font-size: 14px;
+            color: var(--color-text-secondary);
+            padding: 4px 10px;
+            background: var(--color-bg);
+            border-radius: 6px;
+            border: 1px solid var(--color-border);
+        }
+        .dashboard-card-body { padding: 16px; }
+        .section-head-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .section-head-row h3 { margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-secondary); }
+        .cve-list-summary { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 10px; }
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; background: var(--color-primary); color: white; }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-secondary { background: var(--color-border); color: var(--color-text-primary); }
+        .cve-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+        .cve-btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-family: monospace;
+            font-size: 13px;
+            cursor: pointer;
+            color: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        }
+        .cve-btn:hover { opacity: 0.92; transform: translateY(-1px); }
+        .cve-btn.critical { background: var(--severity-critical); }
+        .cve-btn.high { background: var(--severity-high); }
+        .cve-btn.medium { background: var(--severity-medium); color: #333; }
+        .cve-btn.low { background: var(--severity-low); }
+        .empty-state { padding: 16px; color: var(--color-text-secondary); font-style: italic; }
+        .error-message { padding: 12px; background: #fee; border: 1px solid var(--color-danger); border-radius: 8px; color: var(--color-danger); font-size: 14px; margin-top: 8px; }
+        .remediate-section-message { margin-top: 12px; padding: 10px 12px; border-radius: 6px; font-size: 14px; display: none; }
+        .remediate-section-message.visible { display: block; }
+        .remediate-section-message.error { background: #f8d7da; border: 1px solid var(--color-danger); color: #721c24; }
+                        .remediate-section-message.busy { background: var(--color-bg-secondary); border: 1px solid var(--color-border); color: var(--color-text-secondary); }
+        .remediate-yaml-selectable { width: 100%; min-height: 120px; max-height: 320px; margin-top: 8px; padding: 10px; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.4; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-bg); color: var(--color-text-primary); resize: vertical; user-select: text; white-space: pre-wrap; word-break: normal; overflow-wrap: normal; }
+        .loading { color: var(--color-text-secondary); }
+        pre.playbook-preview { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 8px; padding: 16px; overflow: auto; font-size: 12px; max-height: 320px; white-space: pre-wrap; }
+        .page-message { padding: 10px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; display: none; }
+        .page-message.visible { display: block; }
+        .page-message.warning { background: #fff3cd; border: 1px solid var(--color-warning); color: #856404; }
+        .page-message.error { background: #f8d7da; border: 1px solid var(--color-danger); color: #721c24; }
+        .playbook-download-banner {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            background: #e7f3ff;
+            border: 1px solid var(--color-primary);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .playbook-download-banner.visible { display: flex; flex-wrap: wrap; }
+        .playbook-download-banner .banner-text { color: var(--color-text-primary); }
+        .playbook-download-banner .btn { flex-shrink: 0; }
+        .explain-truncate { max-height: none; line-height: 1.5; font-size: 14px; }
+        /* CVE overlay – match cve_details.html UX */
+        .cve-overlay-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid var(--color-border); }
+        .cve-overlay-title { font-size: 24px; font-weight: 700; color: var(--color-text-primary); margin-bottom: 8px; }
+        .cve-overlay-severity { display: inline-flex; align-items: center; gap: 12px; font-size: 16px; flex-wrap: wrap; }
+        .severity-badge { padding: 6px 14px; border-radius: 16px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+        .severity-badge.critical { background: var(--severity-critical); color: white; }
+        .severity-badge.important { background: var(--severity-high); color: white; }
+        .severity-badge.moderate { background: var(--severity-medium); color: #333; }
+        .severity-badge.low { background: var(--severity-low); color: white; }
+        .cvss-score { font-size: 20px; font-weight: 700; color: var(--color-text-secondary); }
+        .cve-detail-section { background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+        .cve-detail-section .section-title { font-size: 14px; font-weight: 700; color: var(--color-text-primary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px; }
+        .cve-detail-section .description { font-size: 14px; line-height: 1.7; color: var(--color-text-primary); }
+        .metadata-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+        .metadata-item { display: flex; flex-direction: column; }
+        .metadata-label { font-size: 11px; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+        .metadata-value { font-size: 13px; font-weight: 500; }
+        .advisories-list { display: flex; flex-direction: column; gap: 6px; }
+        .advisory-link { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-primary); text-decoration: none; font-weight: 600; font-size: 13px; transition: all 0.2s; max-width: fit-content; }
+        .advisory-link:hover { opacity: 0.9; }
+        .external-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+        .external-link { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; background: var(--color-primary); color: white; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 13px; transition: all 0.2s; }
+        .external-link:hover { opacity: 0.92; }
+        .external-link-secondary { background: var(--color-bg-secondary); color: var(--color-text-primary); border: 2px solid var(--color-border); }
+        .badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+        .badge-yes { background: var(--color-success); color: white; }
+        .badge-no { background: var(--color-border); color: var(--color-text-secondary); }
+        .overlay-section ul.flat { list-style: none; }
+        .overlay-section ul.flat li { padding: 6px 0; border-bottom: 1px solid var(--color-border); font-size: 13px; }
+        .overlay-section ul.flat li:last-child { border-bottom: none; }
+        .modal-footer { padding: 12px 16px; border-top: 1px solid var(--color-border); flex-shrink: 0; display: flex; gap: 8px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        .modal-footer-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        /* Modal overlay: fill viewport so header/footer are never clipped */
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            min-height: 100vh;
+            min-height: 100dvh;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+        .modal-backdrop.visible { display: flex; }
+        .modal-box {
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 12px;
+            max-width: 92vw;
+            width: 800px;
+            height: min(90vh, 90dvh);
+            max-height: min(90vh, 90dvh);
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            flex-shrink: 0;
+        }
+        .modal-box.modal-box--full {
+            width: 95vw;
+            max-width: 95vw;
+            height: 95vh;
+            max-height: 95vh;
+        }
+        .cve-section-list { padding: 16px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+        .cve-section-btn {
+            display: block;
+            width: 100%;
+            padding: 14px 18px;
+            text-align: left;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--color-text-primary);
+            background: var(--color-bg-secondary);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .cve-section-btn:hover { background: var(--color-border); }
+        .modal-back-wrap { display: inline-flex; align-items: center; margin-right: 8px; }
+        .modal-back-wrap .btn { padding: 4px 10px; font-size: 12px; white-space: nowrap; }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--color-border);
+            flex-shrink: 0;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .modal-header-left { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .modal-title { font-size: 18px; font-weight: 700; margin: 0; }
+        #modal-severity { display: inline-flex; align-items: center; gap: 8px; }
+        #modal-severity .severity-badge { padding: 4px 10px; font-size: 11px; }
+        #modal-severity .cvss-score { font-size: 16px; }
+        .cve-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--color-border); flex-shrink: 0; overflow-x: auto; }
+        .cve-tab { padding: 10px 14px; border: none; background: none; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--color-text-secondary); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+        .cve-tab:hover { color: var(--color-text-primary); }
+        .cve-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+        .cve-tabpanel { display: none; padding: 16px; overflow-y: auto; min-height: 0; flex: 1; }
+        .cve-tabpanel.active { display: block; }
+        .modal-close {
+            font-size: 24px;
+            line-height: 1;
+            cursor: pointer;
+            background: none;
+            border: none;
+            color: var(--color-text-secondary);
+            padding: 0 4px;
+        }
+        .modal-close:hover { color: var(--color-text-primary); }
+        .modal-header-actions { display: flex; align-items: center; gap: 8px; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        .modal-content {
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+            overflow: hidden;
+            flex: 1;
+            min-height: 0;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="page-message" class="page-message" role="alert" aria-live="polite"></div>
+        <div id="playbook-download-banner" class="playbook-download-banner" role="status" aria-live="polite">
+            <span class="banner-text">Playbook ready. Download before closing or refreshing.</span>
+            <button type="button" class="btn" id="playbook-download-banner-btn">Download YAML</button>
+        </div>
+        <div class="dashboard-card">
+            <div class="top-bar" id="top-bar">
+                <span class="top-bar-title">Remediation Dashboard</span>
+                <span class="top-bar-scope" id="scope-label">…</span>
+            </div>
+            <div class="dashboard-card-body">
+                <div class="section-head-row">
+                    <h3>CVEs</h3>
+                    <button type="button" class="btn btn-secondary" id="btn-refresh-cves" aria-label="Refresh CVE list" title="Refresh CVE list">🔄</button>
+                </div>
+                <div id="cve-list-container">
+                    <div class="empty-state" id="cve-empty">Loading CVEs…</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-backdrop" class="modal-backdrop" aria-hidden="true">
+        <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <div class="modal-header">
+                <div class="modal-header-left">
+                    <span id="modal-back-wrap" class="modal-back-wrap" style="display: none;"></span>
+                    <h2 id="modal-title" class="modal-title"></h2>
+                    <div id="modal-severity" class="cve-overlay-severity" style="display: none;"></div>
+                </div>
+                <div class="modal-header-actions">
+                    <button type="button" class="btn btn-secondary btn-sm" id="modal-refresh-btn" aria-label="Refresh" title="Refresh" style="display: none;">🔄</button>
+                    <button type="button" class="modal-close" id="modal-close" aria-label="Close">&times;</button>
+                </div>
+            </div>
+            <div id="modal-content" class="modal-content"></div>
+            <div id="modal-footer" class="modal-footer" style="display: none;">
+                <div class="modal-footer-actions">
+                    <button type="button" class="btn btn-secondary" id="modal-scroll-explain-btn" title="Scroll to explanation">Explain</button>
+                    <button type="button" class="btn btn-secondary" id="modal-scroll-devices-btn" title="Scroll to affected systems">Affected systems</button>
+                </div>
+                <div class="modal-footer-actions">
+                    <button type="button" class="btn" id="modal-remediate-btn">Remediate</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        (function() {
+            var app = null;
+            var cveList = [];
+            var affectedSystemsByCve = {};
+            var scopeSystemUuid = null;
+            var scopeDisplayName = null;
+            var scopeDeviceParam = null;
+            var initDone = false;
+            var currentOverlayCveId = null;
+            var currentOverlayUuids = [];
+            var currentOverlayCveDetail = null;
+            var currentOverlayDevices = null;
+            var currentOverlayExplainText = null;
+            var currentOverlayListCve = null;
+            var modalPlaybookYaml = null;
+            var overlaySectionLoading = { description: false, explain: false, devices: false };
+            var overlaySectionErrors = { description: null, explain: null, devices: null };
+            var lastFallbackBlobUrl = null;
+
+            var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            var EXPLAIN_MAX_CHARS = 400;
+            var LOG_PREFIX = "[RemediationDashboard]";
+
+            function log() {
+                try {
+                    var args = [LOG_PREFIX].concat(Array.prototype.slice.call(arguments));
+                    if (typeof console !== "undefined" && console.log) console.log.apply(console, args);
+                } catch (e) {}
+            }
+
+            function getDeviceFromUrl() {
+                var params = new URLSearchParams(window.location.search);
+                var device = params.get("device") || null;
+                if (!device && window.location.hash) {
+                    var hash = decodeURIComponent(window.location.hash.slice(1)).trim();
+                    if (hash.indexOf("device=") === 0) {
+                        var parsed = new URLSearchParams(hash);
+                        device = parsed.get("device") || hash.replace(/^device=/, "").split("&")[0].trim();
+                    } else if (hash.length > 0 && hash.indexOf("=") === -1) {
+                        device = hash;
+                    }
+                }
+                device = (device && String(device).trim()) || null;
+                log("getDeviceFromUrl: search=" + window.location.search + " hash=" + (window.location.hash || "(none)") + " -> device=" + (device || "(null)"));
+                return device;
+            }
+
+            function isUuid(s) { return s && UUID_RE.test(String(s).trim()); }
+
+            function resolveDevice(deviceParam) {
+                if (!deviceParam || !String(deviceParam).trim()) {
+                    scopeSystemUuid = null;
+                    scopeDisplayName = null;
+                    scopeDeviceParam = null;
+                    return Promise.resolve();
+                }
+                var trimmed = String(deviceParam).trim();
+                scopeDeviceParam = trimmed;
+                if (isUuid(trimmed)) {
+                    scopeSystemUuid = trimmed;
+                    return callTool("inventory__get_host_details", { host_ids: trimmed }).then(function(r) {
+                        var list = (r && (r.results || r.data)) || [];
+                        if (list[0]) {
+                            scopeDisplayName = list[0].display_name || list[0].fqdn || trimmed;
+                        } else {
+                            scopeDisplayName = trimmed;
+                        }
+                    }).catch(function() { scopeDisplayName = trimmed; });
+                }
+                return callTool("inventory__find_host_by_name", { hostname: trimmed }).then(function(r) {
+                    var list = (r && (r.results || r.data)) || [];
+                    if (list.length) {
+                        var first = list[0];
+                        scopeSystemUuid = first.id || first.insights_id;
+                        scopeDisplayName = first.display_name || first.fqdn || first.id || trimmed;
+                    } else {
+                        scopeSystemUuid = null;
+                        scopeDisplayName = null;
+                        showMessage("Device not found: " + trimmed, "warning");
+                    }
+                }).catch(function() {
+                    scopeSystemUuid = null;
+                    scopeDisplayName = null;
+                });
+            }
+
+            function getScopeLabel() {
+                var label = scopeDisplayName != null && scopeDisplayName !== "" ? scopeDisplayName : (scopeDeviceParam != null && scopeDeviceParam !== "" ? scopeDeviceParam : "All the fleet");
+                log("getScopeLabel: scopeDisplayName=" + (scopeDisplayName || "(null)") + " scopeDeviceParam=" + (scopeDeviceParam || "(null)") + " -> label=" + label);
+                return label;
+            }
+            function updateScopeLabel() {
+                var el = document.getElementById("scope-label");
+                var label = getScopeLabel();
+                if (el) el.textContent = label;
+                log("updateScopeLabel: set scope-label to", label);
+            }
+
+            function loadCves() {
+                var container = document.getElementById("cve-list-container");
+                if (container) {
+                    container.innerHTML = "<div class=\"empty-state\">Loading CVEs…</div>";
+                }
+                var promise = scopeSystemUuid
+                    ? callTool("vulnerability__get_system_cves", { system_uuid: scopeSystemUuid, sort: "-cvss_score", limit: 5 })
+                    : callTool("vulnerability__get_cves", { sort: "-cvss_score", limit: 5, advisory_available: "true" });
+                promise.then(function(result) {
+                    if (result) renderCveList(result);
+                    else {
+                        if (container) {
+                            container.innerHTML = "<div class=\"empty-state\">Could not load CVEs. Ensure the host supports app-initiated tool calls.</div>";
+                        }
+                    }
+                });
+            }
+
+            function openModal(title, options) {
+                options = options || {};
+                var backdrop = document.getElementById("modal-backdrop");
+                var titleEl = document.getElementById("modal-title");
+                var contentEl = document.getElementById("modal-content");
+                var footerEl = document.getElementById("modal-footer");
+                var remediateBtn = document.getElementById("modal-remediate-btn");
+                if (!backdrop || !titleEl || !contentEl) return;
+                titleEl.textContent = title;
+                contentEl.innerHTML = options.content || "<div class=\"loading\">Loading…</div>";
+                if (footerEl) {
+                    footerEl.style.display = options.showFooter ? "flex" : "none";
+                    if (remediateBtn) remediateBtn.style.display = options.showRemediate !== false ? "inline-block" : "none";
+                }
+                modalPlaybookYaml = null;
+                backdrop.classList.add("visible");
+                backdrop.setAttribute("aria-hidden", "false");
+                document.body.style.overflow = "hidden";
+            }
+
+            function closeModal() {
+                var backdrop = document.getElementById("modal-backdrop");
+                if (backdrop) {
+                    backdrop.classList.remove("visible");
+                    backdrop.setAttribute("aria-hidden", "true");
+                }
+                document.body.style.overflow = "";
+                currentOverlayCveId = null;
+                currentOverlayUuids = [];
+                currentOverlayCveDetail = null;
+                currentOverlayDevices = null;
+                currentOverlayExplainText = null;
+                currentOverlayListCve = null;
+                modalPlaybookYaml = null;
+                var refreshBtn = document.getElementById("modal-refresh-btn");
+                if (refreshBtn) refreshBtn.style.display = "none";
+                var severityEl = document.getElementById("modal-severity");
+                if (severityEl) { severityEl.style.display = "none"; severityEl.innerHTML = ""; }
+                var backWrap = document.getElementById("modal-back-wrap");
+                if (backWrap) { backWrap.style.display = "none"; backWrap.innerHTML = ""; }
+            }
+
+            function persistPlaybookForReinit() {
+                if (!modalPlaybookYaml || !currentOverlayCveId) return;
+                try {
+                    sessionStorage.setItem("remediationPlaybookYaml", modalPlaybookYaml);
+                    sessionStorage.setItem("remediationPlaybookCveId", currentOverlayCveId);
+                    log("persistPlaybookForReinit: saved to sessionStorage");
+                } catch (e) { log("persistPlaybookForReinit: sessionStorage failed", e); }
+            }
+            function showMessage(text, type) {
+                type = type || "warning";
+                var el = document.getElementById("page-message");
+                if (!el) return;
+                el.textContent = text;
+                el.className = "page-message visible " + type;
+                el.setAttribute("aria-live", "polite");
+                clearTimeout(showMessage._timer);
+                showMessage._timer = setTimeout(function() {
+                    el.className = "page-message";
+                    el.textContent = "";
+                }, 6000);
+            }
+
+            function unwrapCallResult(raw) {
+                if (raw == null) return null;
+                if (raw.error) return raw.error.message || raw.error;
+                if (raw.structuredContent && raw.structuredContent.result !== undefined) return raw.structuredContent.result;
+                if (raw.structuredContent) return raw.structuredContent;
+                if (raw.content && Array.isArray(raw.content) && raw.content[0]) {
+                    var first = raw.content[0];
+                    if (first.type === "text" && first.text) {
+                        try { return JSON.parse(first.text); } catch (e) { return first.text; }
+                    }
+                }
+                return raw;
+            }
+
+            function callTool(toolName, args) {
+                if (!app || typeof app.callServerTool !== "function") {
+                    log("callTool: app or callServerTool not available");
+                    return Promise.resolve(null);
+                }
+                return app.callServerTool({ name: toolName, arguments: args || {} }).then(function(raw) {
+                    return unwrapCallResult(raw);
+                }).catch(function(err) {
+                    log("callTool error:", err);
+                    return Promise.resolve(null);
+                });
+            }
+
+            function parseToolResult(params) {
+                if (!params) { log("parseToolResult: params null"); return null; }
+                var r = params.result != null ? params.result : params;
+                log("parseToolResult: has params.result=" + (params.result != null) + " r.structuredContent=" + (r.structuredContent != null) + " r.content=" + (r.content && r.content.length));
+                if (r.structuredContent && r.structuredContent.result !== undefined) {
+                    var out = r.structuredContent.result;
+                    log("parseToolResult: returning structuredContent.result type=" + typeof out + (typeof out === "string" ? " len=" + out.length : ""));
+                    return out;
+                }
+                if (r.structuredContent) { log("parseToolResult: returning structuredContent"); return r.structuredContent; }
+                if (r.content && Array.isArray(r.content) && r.content[0] && r.content[0].type === "text") {
+                    try {
+                        var parsed = JSON.parse(r.content[0].text);
+                        log("parseToolResult: returning parsed content[0].text type=" + typeof parsed);
+                        return parsed;
+                    } catch (e) {
+                        log("parseToolResult: returning content[0].text as string len=" + (r.content[0].text && r.content[0].text.length));
+                        return r.content[0].text;
+                    }
+                }
+                log("parseToolResult: returning null (no match)");
+                return null;
+            }
+
+            function extractPlaybookYaml(result) {
+                if (result == null) return "";
+                if (typeof result === "string") {
+                    if (result.trim().charAt(0) === "{") {
+                        try {
+                            var o = JSON.parse(result);
+                            return extractPlaybookYaml(o) || result;
+                        } catch (e) { return result; }
+                    }
+                    return result;
+                }
+                var o = result;
+                if (o.playbook) return typeof o.playbook === "string" ? o.playbook : "";
+                if (o.result && typeof o.result === "string") return o.result;
+                if (o.content) {
+                    if (typeof o.content === "string") return o.content;
+                    if (Array.isArray(o.content) && o.content[0] && o.content[0].text) return o.content[0].text;
+                }
+                if (o.text !== undefined && typeof o.text === "string") return o.text;
+                if (o.data) {
+                    var d = o.data;
+                    if (typeof d === "string") return d;
+                    if (d.playbook) return typeof d.playbook === "string" ? d.playbook : "";
+                    if (d.result && typeof d.result === "string") return d.result;
+                }
+                if (Array.isArray(o) && o[0] && typeof o[0] === "string") return o[0];
+                return "";
+            }
+
+            function severityClass(impact) {
+                var i = (impact || "").toLowerCase();
+                if (i === "critical") return "critical";
+                if (i === "high" || i === "important") return "high";
+                if (i === "medium" || i === "moderate") return "medium";
+                return "low";
+            }
+            function severityRank(impact) {
+                var i = (impact || "").toLowerCase();
+                if (i === "critical") return 4;
+                if (i === "high" || i === "important") return 3;
+                if (i === "medium" || i === "moderate") return 2;
+                if (i === "low") return 1;
+                return 0;
+            }
+
+            function severityBadgeClass(severity) {
+                var s = (severity || "").toLowerCase();
+                if (s.indexOf("critical") !== -1) return "critical";
+                if (s.indexOf("important") !== -1 || s === "high") return "important";
+                if (s.indexOf("moderate") !== -1 || s === "medium") return "moderate";
+                return "low";
+            }
+
+            function explanationToShortText(expl) {
+                if (!expl || typeof expl === "string") return expl || "No explanation.";
+                var parts = [];
+                if (expl.reasons && expl.reasons.length) parts.push(expl.reasons.join(" "));
+                if (expl.affected_packages && expl.affected_packages.length) {
+                    var names = expl.affected_packages.map(function(p) { return typeof p === "string" ? p : (p.name || ""); }).filter(Boolean);
+                    if (names.length) parts.push("Affected packages: " + names.slice(0, 8).join(", ") + (names.length > 8 ? "…" : ""));
+                }
+                var text = parts.join(" ");
+                if (text.length > EXPLAIN_MAX_CHARS) text = text.slice(0, EXPLAIN_MAX_CHARS) + "…";
+                return text || "No explanation.";
+            }
+
+            function renderCveList(data) {
+                var container = document.getElementById("cve-list-container");
+                if (data && data.error) {
+                    container.innerHTML = "";
+                    var errEl = document.createElement("div");
+                    errEl.className = "error-message";
+                    errEl.textContent = data.error;
+                    if (data.hint) {
+                        var hintEl = document.createElement("p");
+                        hintEl.style.marginTop = "8px";
+                        hintEl.style.fontSize = "13px";
+                        hintEl.textContent = data.hint;
+                        errEl.appendChild(hintEl);
+                    }
+                    container.appendChild(errEl);
+                    return;
+                }
+                var list = (data && data.data) || (Array.isArray(data) ? data : []);
+                var meta = (data && data.meta) || {};
+                var totalCves = meta.total_items != null ? meta.total_items : (meta.total != null ? meta.total : meta.count != null ? meta.count : list.length);
+                cveList = list.map(function(item) {
+                    var id = item.id || (item.attributes && item.attributes.synopsis);
+                    var attrs = item.attributes || item;
+                    return {
+                        id: id,
+                        cvss: attrs.cvss3_score || attrs.cvss2_score || "-",
+                        impact: (attrs.impact || "low").toLowerCase(),
+                        systems_affected: attrs.systems_affected != null ? attrs.systems_affected : (item.systems_affected != null ? item.systems_affected : "-"),
+                        _raw: item
+                    };
+                }).filter(function(x) { return x.id; });
+                cveList.sort(function(a, b) {
+                    var ra = severityRank(a.impact);
+                    var rb = severityRank(b.impact);
+                    if (ra !== rb) return rb - ra;
+                    return (a.id || "").localeCompare(b.id || "");
+                });
+
+                container.innerHTML = "";
+                if (cveList.length === 0) {
+                    container.appendChild(document.createElement("div")).className = "empty-state";
+                    container.firstChild.textContent = "No CVEs found.";
+                    return;
+                }
+                var summary = document.createElement("div");
+                summary.className = "cve-list-summary";
+                summary.setAttribute("aria-live", "polite");
+                summary.textContent = "Showing " + cveList.length + " of " + totalCves + " CVEs";
+                container.appendChild(summary);
+                var wrap = document.createElement("div");
+                wrap.className = "cve-buttons";
+                cveList.forEach(function(cve) {
+                    var btn = document.createElement("button");
+                    btn.type = "button";
+                    btn.className = "cve-btn " + severityClass(cve.impact);
+                    btn.textContent = cve.id;
+                    btn.dataset.cve = cve.id;
+                    btn.addEventListener("click", function() { openCveOverlay(cve); });
+                    wrap.appendChild(btn);
+                });
+                container.appendChild(wrap);
+            }
+
+            function openCveOverlay(cve) {
+                currentOverlayCveId = cve.id;
+                currentOverlayUuids = [];
+                currentOverlayExplainText = null;
+                var minimalDetail = (cve._raw && typeof cve._raw === "object") ? cve._raw : { attributes: { impact: cve.impact || "unknown", cvss3_score: cve.cvss, cvss2_score: cve.cvss } };
+                currentOverlayCveDetail = minimalDetail;
+                currentOverlayDevices = [];
+                currentOverlayListCve = cve;
+                overlaySectionLoading = { description: true, explain: true, devices: true };
+                overlaySectionErrors = { description: null, explain: null, devices: null };
+
+                openModal(cve.id, { showFooter: false, showRemediate: false, content: "" });
+                var contentEl = document.getElementById("modal-content");
+                var titleEl = document.getElementById("modal-title");
+                var severityEl = document.getElementById("modal-severity");
+                if (titleEl) titleEl.textContent = cve.id;
+                if (severityEl) {
+                    var norm = normalizeCveDetail(minimalDetail, cve._raw);
+                    var attrs = norm.attrs;
+                    var severity = attrs.severity || attrs.impact || (cve.impact || "Unknown");
+                    var cvss = attrs.cvss3_score || attrs.cvss2_score || cve.cvss;
+                    severityEl.style.display = "inline-flex";
+                    severityEl.innerHTML = '<span class="severity-badge ' + severityBadgeClass(severity) + '">' + escapeHtml(String(severity).toUpperCase()) + "</span>" + (cvss != null && Number(cvss) > 0 ? '<span class="cvss-score">CVSS ' + Number(cvss).toFixed(1) + "</span>" : "");
+                }
+                if (contentEl) buildCveSectionList(contentEl, minimalDetail, [], cve.id, cve);
+
+                var refreshBtn = document.getElementById("modal-refresh-btn");
+                if (refreshBtn) {
+                    refreshBtn.style.display = "inline-block";
+                    refreshBtn.onclick = function() {
+                        if (contentEl) contentEl.innerHTML = "<div class=\"loading\">Refreshing…</div>";
+                        openCveOverlay(cve);
+                    };
+                }
+
+                var descPromise = callTool("vulnerability__get_cve", { cve: cve.id });
+                callTool("vulnerability__get_cve_systems", { cve: cve.id, limit: 50 }).then(function(sysResult) {
+                    if (currentOverlayCveId !== cve.id) return;
+                    if (sysResult && typeof sysResult === "object" && sysResult.error != null) {
+                        overlaySectionErrors.devices = typeof sysResult.error === "string" ? sysResult.error : (sysResult.hint || JSON.stringify(sysResult.error));
+                        overlaySectionLoading.devices = false;
+                        descPromise.then(function(descResult) {
+                            if (currentOverlayCveId !== cve.id) return;
+                            overlaySectionLoading.description = false;
+                            if (descResult && typeof descResult === "object" && descResult.error != null)
+                                overlaySectionErrors.description = typeof descResult.error === "string" ? descResult.error : (descResult.hint || "");
+                            renderOverlayContent([], cve.id, Promise.resolve(null), descResult, cve);
+                        });
+                        return;
+                    }
+                    var list = (sysResult && sysResult.data) ? sysResult.data : (sysResult && sysResult.results) ? sysResult.results : (Array.isArray(sysResult) ? sysResult : []);
+                    var uuids = list.map(function(s) { return s.id || s.inventory_id || (s.attributes && s.attributes.inventory_id); }).filter(Boolean);
+                    var explainUuid = scopeSystemUuid || (uuids.length ? uuids[0] : null);
+                    if (scopeSystemUuid && uuids.indexOf(scopeSystemUuid) === -1) uuids.push(scopeSystemUuid);
+                    currentOverlayUuids = uuids;
+                    affectedSystemsByCve[cve.id] = uuids;
+
+                    var explainPromise = explainUuid
+                        ? callTool("vulnerability__explain_cves", { cves: [cve.id], system_uuid: explainUuid })
+                        : Promise.resolve(null);
+
+                    function renderWithDevices(devices) {
+                        overlaySectionLoading.devices = false;
+                        descPromise.then(function(descResult) {
+                            if (currentOverlayCveId !== cve.id) return;
+                            overlaySectionLoading.description = false;
+                            if (descResult && typeof descResult === "object" && descResult.error != null)
+                                overlaySectionErrors.description = typeof descResult.error === "string" ? descResult.error : (descResult.hint || "");
+                            renderOverlayContent(devices, cve.id, explainPromise, descResult, cve);
+                        });
+                    }
+
+                    if (uuids.length === 0) {
+                        renderWithDevices([]);
+                        return;
+                    }
+                    callTool("inventory__get_host_details", { host_ids: uuids.slice(0, 30).join(",") }).then(function(detailResult) {
+                        if (currentOverlayCveId !== cve.id) return;
+                        var nameByUuid = {};
+                        var hostList = (detailResult && (detailResult.results || detailResult.data)) || [];
+                        hostList.forEach(function(h) {
+                            var id = h.id || h.insights_id;
+                            if (id) nameByUuid[id] = h.display_name || h.fqdn || id;
+                        });
+                        uuids.forEach(function(u) { if (!nameByUuid[u]) nameByUuid[u] = u; });
+                        renderWithDevices(uuids.map(function(u) { return { uuid: u, name: nameByUuid[u] || u }; }));
+                    }).catch(function(err) {
+                        if (currentOverlayCveId !== cve.id) return;
+                        overlaySectionErrors.devices = (err && err.message) ? err.message : String(err || "Failed to load host details.");
+                        renderWithDevices(uuids.map(function(u) { return { uuid: u, name: u }; }));
+                    });
+                }).catch(function(err) {
+                    if (currentOverlayCveId !== cve.id) return;
+                    overlaySectionErrors.devices = (err && err.message) ? err.message : String(err || "Failed to load affected systems.");
+                    overlaySectionLoading.devices = false;
+                    descPromise.then(function(descResult) {
+                        if (currentOverlayCveId !== cve.id) return;
+                        overlaySectionLoading.description = false;
+                        if (descResult && typeof descResult === "object" && descResult.error != null)
+                            overlaySectionErrors.description = typeof descResult.error === "string" ? descResult.error : (descResult.hint || "");
+                        renderOverlayContent([], cve.id, Promise.resolve(null), descResult, cve);
+                    });
+                });
+            }
+
+            function el(tag, className, text) {
+                var n = document.createElement(tag);
+                if (className) n.className = className;
+                if (text != null) n.textContent = text;
+                return n;
+            }
+            /** Normalize CVE detail from API/host so we always have { data, attrs } shape. Optional fallback (e.g. list item) fills in missing fields. */
+            function normalizeCveDetail(cveDetail, fallbackItem) {
+                var empty = { data: {}, attrs: {} };
+                var o = cveDetail;
+                if (o == null) o = {};
+                if (typeof o === "string") {
+                    try { o = JSON.parse(o); } catch (e) { o = {}; }
+                }
+                var data = o.data != null ? o.data : (o.attributes != null ? o : null);
+                if (data == null) data = o;
+                var attrs = (data && data.attributes) ? data.attributes : (o.attributes || (typeof data === "object" && data !== null ? data : {}));
+                if (typeof attrs !== "object" || attrs === null) attrs = {};
+                if (fallbackItem && (fallbackItem.attributes || fallbackItem._raw)) {
+                    var fb = fallbackItem.attributes || fallbackItem._raw || fallbackItem;
+                    if (typeof fb === "object" && fb !== null) {
+                        ["description", "synopsis", "impact", "cvss3_score", "cvss2_score", "public_date", "modified_date", "status", "known_exploit", "systems_affected", "advisories_list", "cvss3_metrics"].forEach(function(k) {
+                            if ((attrs[k] === undefined || attrs[k] === null || attrs[k] === "") && fb[k] !== undefined && fb[k] !== null && fb[k] !== "") attrs[k] = fb[k];
+                        });
+                    }
+                }
+                return { data: data, attrs: attrs };
+            }
+            function sectionLabel(id) {
+                return id === "description" ? "Description" : id === "metadata" ? "Metadata" : id === "explain" ? "Why it affects" : id === "devices" ? "Affected devices" : id === "advisories" ? "Advisories" : id === "links" ? "Links" : "Remediate";
+            }
+            function buildCveSectionList(parentEl, cveDetail, devices, cveId, listCve) {
+                parentEl.innerHTML = "";
+                var fb = (listCve && listCve._raw) || (currentOverlayListCve && currentOverlayListCve._raw);
+                var norm = normalizeCveDetail(cveDetail, fb);
+                var attrs = norm.attrs;
+                var hasAdv = attrs.advisories_list && attrs.advisories_list.length > 0;
+                var ids = ["description", "metadata", "explain", "devices"];
+                if (hasAdv) ids.push("advisories");
+                ids.push("links", "remediate");
+                var wrap = el("div", "cve-section-list");
+                ids.forEach(function(id) {
+                    var btn = document.createElement("button");
+                    btn.type = "button";
+                    btn.className = "cve-section-btn";
+                    btn.setAttribute("data-section", id);
+                    btn.textContent = sectionLabel(id);
+                    btn.onclick = function() { showSection(id); };
+                    wrap.appendChild(btn);
+                });
+                parentEl.appendChild(wrap);
+            }
+            function buildSectionContent(container, sectionId, cveDetail, devices, cveId) {
+                container.innerHTML = "";
+                var fb = currentOverlayListCve && currentOverlayListCve._raw;
+                var norm = normalizeCveDetail(cveDetail, fb);
+                var data = norm.data;
+                var attrs = norm.attrs;
+                var descText = attrs.description || attrs.synopsis || "No description available.";
+                var safeId = (cveId || "").replace(/"/g, "&quot;");
+                function sect(title, fn) {
+                    var s = el("div", "cve-detail-section");
+                    s.appendChild(el("div", "section-title", title));
+                    fn(s);
+                    container.appendChild(s);
+                }
+                if (sectionId === "description") {
+                    sect("Description", function(s) {
+                        if (overlaySectionLoading.description) {
+                            s.appendChild(el("div", "loading", "Loading data…"));
+                            return;
+                        }
+                        if (overlaySectionErrors.description) {
+                            var errD = el("div", "error-message");
+                            errD.textContent = overlaySectionErrors.description;
+                            s.appendChild(errD);
+                            return;
+                        }
+                        var d = el("div", "description");
+                        d.textContent = descText;
+                        s.appendChild(d);
+                    });
+                    return;
+                }
+                if (sectionId === "metadata") {
+                    sect("Metadata", function(s) {
+                        var grid = el("div", "metadata-grid");
+                        function metaRow(l, v) {
+                            var item = el("div", "metadata-item");
+                            item.appendChild(el("div", "metadata-label", l));
+                            item.appendChild(el("div", "metadata-value", String(v)));
+                            grid.appendChild(item);
+                        }
+                        if (attrs.public_date) metaRow("Public Date", new Date(attrs.public_date).toLocaleDateString());
+                        if (attrs.modified_date) metaRow("Modified Date", new Date(attrs.modified_date).toLocaleDateString());
+                        if (attrs.impact) metaRow("Impact", attrs.impact);
+                        if (attrs.cvss3_score != null) metaRow("CVSS v3", Number(attrs.cvss3_score).toFixed(1) + (attrs.cvss3_metrics ? " (" + attrs.cvss3_metrics + ")" : ""));
+                        if (attrs.cvss2_score != null) metaRow("CVSS v2", Number(attrs.cvss2_score).toFixed(1));
+                        if (attrs.status) metaRow("Status", attrs.status);
+                        if (attrs.known_exploit != null) metaRow("Known Exploit", attrs.known_exploit ? "Yes" : "No");
+                        if (attrs.systems_affected != null) metaRow("Systems Affected", attrs.systems_affected + " systems");
+                        if (!grid.children.length) grid.appendChild(el("p", "", "No metadata."));
+                        s.appendChild(grid);
+                    });
+                    return;
+                }
+                if (sectionId === "explain") {
+                    sect("Why it affects your systems", function(s) {
+                        if (overlaySectionLoading.explain) {
+                            s.appendChild(el("div", "loading", "Loading data…"));
+                            return;
+                        }
+                        if (overlaySectionErrors.explain) {
+                            var errD = el("div", "error-message");
+                            errD.textContent = overlaySectionErrors.explain;
+                            s.appendChild(errD);
+                            return;
+                        }
+                        var d = el("div", "explain-truncate");
+                        d.textContent = currentOverlayExplainText != null ? currentOverlayExplainText : "Set a device scope or choose an affected system to see an explanation.";
+                        s.appendChild(d);
+                    });
+                    return;
+                }
+                if (sectionId === "devices") {
+                    sect("Affected devices", function(s) {
+                        if (overlaySectionLoading.devices) {
+                            s.appendChild(el("div", "loading", "Loading data…"));
+                            return;
+                        }
+                        if (overlaySectionErrors.devices) {
+                            var errD = el("div", "error-message");
+                            errD.textContent = overlaySectionErrors.devices;
+                            s.appendChild(errD);
+                            return;
+                        }
+                        var ul = el("ul", "flat");
+                        if (devices.length === 0) { var li = el("li"); li.textContent = "No affected systems."; ul.appendChild(li); }
+                        else devices.forEach(function(d) {
+                            var li = el("li");
+                            if (d.name && d.name !== d.uuid) {
+                                li.textContent = d.name + " ";
+                                var span = el("span");
+                                span.style.color = "var(--color-text-secondary)";
+                                span.style.fontSize = "12px";
+                                span.textContent = "(" + d.uuid + ")";
+                                li.appendChild(span);
+                            } else li.textContent = d.uuid;
+                            ul.appendChild(li);
+                        });
+                        s.appendChild(ul);
+                    });
+                    return;
+                }
+                if (sectionId === "advisories") {
+                    sect("Available Advisories", function(s) {
+                        var list = el("div", "advisories-list");
+                        (attrs.advisories_list || []).forEach(function(adv) {
+                            var url = (typeof adv === "string") ? adv : "";
+                            var a = document.createElement("a");
+                            a.href = url;
+                            a.target = "_blank";
+                            a.rel = "noopener";
+                            a.className = "advisory-link";
+                            a.textContent = url.split("/").pop() || url || "Advisory";
+                            list.appendChild(a);
+                        });
+                        s.appendChild(list);
+                    });
+                    return;
+                }
+                if (sectionId === "links") {
+                    sect("External Links", function(s) {
+                        var links = el("div", "external-links");
+                        function addLink(href, label, cls) {
+                            if (!href) return;
+                            var a = document.createElement("a");
+                            a.href = href;
+                            a.target = "_blank";
+                            a.rel = "noopener";
+                            a.className = cls || "external-link";
+                            a.textContent = label;
+                            links.appendChild(a);
+                        }
+                        var url = (data && data.url) || (cveDetail && cveDetail.data && cveDetail.data.url);
+                        if (url) addLink(url, "Red Hat Console");
+                        addLink("https://access.redhat.com/security/cve/" + safeId, "Red Hat Security", "external-link external-link-secondary");
+                        addLink("https://nvd.nist.gov/vuln/detail/" + safeId, "NVD", "external-link external-link-secondary");
+                        s.appendChild(links);
+                    });
+                    return;
+                }
+                if (sectionId === "remediate") {
+                    sect("Remediate", function(s) {
+                        var para = el("p");
+                        para.style.marginBottom = "12px";
+                        para.textContent = "Create a remediation playbook and download the YAML.";
+                        s.appendChild(para);
+                        var remBtn = document.createElement("button");
+                        remBtn.type = "button";
+                        remBtn.className = "btn";
+                        remBtn.id = "modal-remediate-btn";
+                        remBtn.textContent = "Remediate";
+                        s.appendChild(remBtn);
+                        var dlBtn = document.createElement("button");
+                        dlBtn.type = "button";
+                        dlBtn.className = "btn btn-secondary";
+                        dlBtn.id = "remediate-section-download-btn";
+                        dlBtn.style.marginLeft = "8px";
+                        dlBtn.style.display = "none";
+                        dlBtn.title = "Save playbook YAML";
+                        dlBtn.textContent = "Download YAML";
+                        s.appendChild(dlBtn);
+                        var downloadStatusEl = document.createElement("div");
+                        downloadStatusEl.id = "remediate-section-download-status";
+                        downloadStatusEl.className = "remediate-section-download-status";
+                        downloadStatusEl.style.marginTop = "12px";
+                        downloadStatusEl.style.fontSize = "13px";
+                        downloadStatusEl.setAttribute("aria-live", "polite");
+                        s.appendChild(downloadStatusEl);
+                    });
+                    wireRemediateButtons(cveId);
+                    return;
+                }
+            }
+            function wireRemediateButtons(cveId) {
+                var remediateBtn = document.getElementById("remediate-section-remediate-btn") || document.getElementById("modal-remediate-btn");
+                if (!remediateBtn) return;
+                function getMessageEl() { return document.getElementById("remediate-section-message"); }
+                function showRemediateMessage(text, isError) {
+                    var el = getMessageEl();
+                    if (!el) return;
+                    el.textContent = text || "";
+                    el.className = "remediate-section-message visible " + (isError ? "error" : "busy");
+                }
+                function hideRemediateMessage() {
+                    var el = getMessageEl();
+                    if (!el) return;
+                    el.textContent = "";
+                    el.className = "remediate-section-message";
+                }
+                function revokeFallbackBlobUrl() {
+                    if (lastFallbackBlobUrl) {
+                        try { URL.revokeObjectURL(lastFallbackBlobUrl); } catch (e) {}
+                        lastFallbackBlobUrl = null;
+                    }
+                }
+                function hideDownloadButton() {
+                    var btn = document.getElementById("remediate-section-download-btn");
+                    if (btn) btn.style.display = "none";
+                    var statusEl = document.getElementById("remediate-section-download-status");
+                    if (statusEl) statusEl.innerHTML = "";
+                    revokeFallbackBlobUrl();
+                }
+                function showAndWireDownload() {
+                    var btn = document.getElementById("remediate-section-download-btn");
+                    if (!btn) {
+                        log("wireRemediateButtons: showAndWireDownload - button not in DOM (user may have navigated away)");
+                        return;
+                    }
+                    hideRemediateMessage();
+                    var statusEl = document.getElementById("remediate-section-download-status");
+                    if (statusEl) statusEl.innerHTML = "";
+                    revokeFallbackBlobUrl();
+                    btn.style.display = "inline-block";
+                    btn.removeAttribute("disabled");
+                    btn.disabled = false;
+                    btn.setAttribute("aria-disabled", "false");
+                    btn.className = "btn";
+                    btn.onclick = function() {
+                        var yaml = modalPlaybookYaml || "";
+                        var filename = "remediation-" + cveId + ".yml";
+                        var statusEl = document.getElementById("remediate-section-download-status");
+                        log("Download YAML clicked, cveId=" + cveId + " yamlLen=" + (yaml ? yaml.length : 0) + " filename=" + filename);
+                        if (!yaml) {
+                            log("Download: no YAML, aborting");
+                            if (statusEl) { statusEl.innerHTML = ""; statusEl.appendChild(document.createTextNode("No playbook content to download.")); }
+                            return;
+                        }
+                        revokeFallbackBlobUrl();
+                        var a = document.createElement("a");
+                        a.download = filename;
+                        a.style.display = "none";
+                        a.setAttribute("download", filename);
+                        try {
+                            log("Download: creating Blob and object URL");
+                            var blob = new Blob([yaml], { type: "text/plain;charset=utf-8" });
+                            var url = URL.createObjectURL(blob);
+                            a.href = url;
+                            document.body.appendChild(a);
+                            log("Download: dispatching click on link (blob URL)");
+                            a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+                            document.body.removeChild(a);
+                            setTimeout(function() { URL.revokeObjectURL(url); }, 500);
+                            log("Download: programmatic click done");
+                        } catch (e) {
+                            log("Download: programmatic click failed", e);
+                        }
+                        if (statusEl) {
+                            statusEl.innerHTML = "";
+                            var rawYaml = (typeof yaml === "string") ? yaml : "";
+                            var msg = document.createElement("div");
+                            msg.style.marginBottom = "8px";
+                            msg.innerHTML = "To save the playbook: <strong>select all the YAML below</strong> (click in the box, then Ctrl+A or Cmd+A), then copy (Ctrl+C or Cmd+C) and paste into a new file. Save as <code>" + escapeHtml(filename) + "</code>.";
+                            statusEl.appendChild(msg);
+                            var textarea = document.createElement("textarea");
+                            textarea.id = "remediate-yaml-selectable";
+                            textarea.className = "remediate-yaml-selectable";
+                            textarea.readOnly = true;
+                            textarea.value = rawYaml;
+                            textarea.setAttribute("aria-label", "Playbook YAML – select and copy");
+                            textarea.title = "Select all (Ctrl+A / Cmd+A), then copy (Ctrl+C / Cmd+C)";
+                            statusEl.appendChild(textarea);
+                            log("Download: selectable YAML block shown (" + rawYaml.length + " chars)");
+                        }
+                    };
+                    log("wireRemediateButtons: download button enabled and wired");
+                }
+                remediateBtn.onclick = function() {
+                    function runCreatePlaybook(uuids) {
+                        if (!uuids || uuids.length === 0) {
+                            showRemediateMessage("No system UUIDs for this CVE. Set a scope (device) or open Affected systems first.", true);
+                            hideDownloadButton();
+                            return;
+                        }
+                        hideDownloadButton();
+                        showRemediateMessage("Creating playbook…", false);
+                        remediateBtn.disabled = true;
+                        remediateBtn.textContent = "Creating…";
+                        callTool("remediations__create_vuln_playbook", {
+                        playbook_name: "Remediation playbook - " + cveId,
+                        cves: [cveId],
+                        uuids: uuids
+                    }).then(function(result) {
+                        remediateBtn.disabled = false;
+                        remediateBtn.textContent = "Remediate";
+                        log("wireRemediateButtons: callTool resolved result type=" + typeof result + (result == null ? " (null)" : (typeof result === "object" ? " keys=" + (result && Object.keys(result).slice(0, 8).join(",")) : " len=" + (result && result.length))));
+                        if (result == null) {
+                            log("wireRemediateButtons: result null, host may have delivered via ontoolresult instead");
+                            showRemediateMessage("No response from host. Try the multi-CVE playbook section below.", true);
+                            hideDownloadButton();
+                            return;
+                        }
+                        if (typeof result === "object" && result !== null && result.error != null) {
+                            var errMsg = typeof result.error === "string" ? result.error : JSON.stringify(result.error);
+                            if (result.hint) errMsg += " " + (typeof result.hint === "string" ? result.hint : "");
+                            log("wireRemediateButtons: tool returned error: " + errMsg);
+                            showRemediateMessage(errMsg, true);
+                            hideDownloadButton();
+                            return;
+                        }
+                        var yaml = extractPlaybookYaml(result);
+                        if (typeof yaml !== "string" || yaml.length === 0) {
+                            yaml = typeof result === "object" && result !== null ? JSON.stringify(result, null, 2) : String(result);
+                        }
+                        log("wireRemediateButtons: yaml len=" + (yaml ? yaml.length : 0) + " hasError=" + (typeof yaml === "string" && yaml.indexOf("MCP Resource not found") !== -1));
+                        if (yaml.indexOf("MCP Resource not found") !== -1) {
+                            showRemediateMessage("Playbook may have been created but content could not be loaded.", true);
+                            hideDownloadButton();
+                            return;
+                        }
+                        if (typeof yaml === "string" && yaml.trim().indexOf("---") !== 0 && yaml.trim().indexOf("hosts:") === -1) {
+                            log("wireRemediateButtons: result does not look like YAML, may be error");
+                            showRemediateMessage(yaml.length > 200 ? yaml.slice(0, 200) + "…" : yaml, true);
+                            hideDownloadButton();
+                            return;
+                        }
+                        modalPlaybookYaml = yaml;
+                        log("wireRemediateButtons: deferring button update so it runs after host/SDK message handling");
+                        persistPlaybookForReinit();
+                        setTimeout(function() {
+                            showAndWireDownload();
+                            log("wireRemediateButtons: done (from callTool promise)");
+                        }, 0);
+                    });
+                    }
+                    var uuids = currentOverlayUuids.length ? currentOverlayUuids : (scopeSystemUuid ? [scopeSystemUuid] : []);
+                    log("wireRemediateButtons: Remediate clicked cveId=" + cveId + " uuids.length=" + (uuids && uuids.length) + " scopeDeviceParam=" + (scopeDeviceParam || "(none)"));
+                    if (uuids.length > 0) {
+                        runCreatePlaybook(uuids);
+                        return;
+                    }
+                    if (scopeDeviceParam) {
+                        remediateBtn.disabled = true;
+                        remediateBtn.textContent = "Resolving scope…";
+                        resolveDevice(scopeDeviceParam).then(function() {
+                            remediateBtn.disabled = false;
+                            remediateBtn.textContent = "Remediate";
+                            updateScopeLabel();
+                            var uuidsAfter = scopeSystemUuid ? [scopeSystemUuid] : [];
+                            if (uuidsAfter.length > 0) runCreatePlaybook(uuidsAfter);
+                            else showMessage("Device \"" + scopeDeviceParam + "\" not found. Set a valid device or open Affected systems.", "warning");
+                        }).catch(function() {
+                            remediateBtn.disabled = false;
+                            remediateBtn.textContent = "Remediate";
+                            showMessage("Could not resolve scope \"" + scopeDeviceParam + "\". Set a valid device or open Affected systems.", "warning");
+                        });
+                        return;
+                    }
+                    runCreatePlaybook([]);
+                };
+                if (modalPlaybookYaml && currentOverlayCveId === cveId) {
+                    log("wireRemediateButtons: restoring download button from existing modalPlaybookYaml");
+                    hideRemediateMessage();
+                    showAndWireDownload();
+                } else {
+                    hideDownloadButton();
+                    hideRemediateMessage();
+                }
+            }
+            function showSection(sectionId) {
+                var box = document.querySelector(".modal-box");
+                if (box) box.classList.add("modal-box--full");
+                var contentEl = document.getElementById("modal-content");
+                var backWrap = document.getElementById("modal-back-wrap");
+                if (!contentEl || !currentOverlayCveDetail || !currentOverlayDevices) return;
+                if (backWrap) {
+                    backWrap.style.display = "inline-flex";
+                    backWrap.innerHTML = "";
+                    var back = document.createElement("button");
+                    back.type = "button";
+                    back.className = "btn btn-secondary";
+                    back.textContent = "← Back to list";
+                    back.onclick = showSectionList;
+                    backWrap.appendChild(back);
+                }
+                contentEl.innerHTML = "";
+                var body = el("div", "cve-section-full");
+                body.style.overflowY = "auto";
+                body.style.flex = "1";
+                body.style.minHeight = "0";
+                body.style.padding = "16px";
+                contentEl.appendChild(body);
+                buildSectionContent(body, sectionId, currentOverlayCveDetail, currentOverlayDevices, currentOverlayCveId);
+            }
+            function showSectionList() {
+                var box = document.querySelector(".modal-box");
+                if (box) box.classList.remove("modal-box--full");
+                var backWrap = document.getElementById("modal-back-wrap");
+                if (backWrap) { backWrap.style.display = "none"; backWrap.innerHTML = ""; }
+                var contentEl = document.getElementById("modal-content");
+                if (!contentEl || !currentOverlayCveDetail || !currentOverlayDevices) return;
+                buildCveSectionList(contentEl, currentOverlayCveDetail, currentOverlayDevices, currentOverlayCveId);
+            }
+
+            function renderOverlayContent(devices, cveId, explainPromise, cveDetail, listCve) {
+                var contentEl = document.getElementById("modal-content");
+                var titleEl = document.getElementById("modal-title");
+                var severityEl = document.getElementById("modal-severity");
+                if (!contentEl) return;
+
+                currentOverlayListCve = listCve || null;
+                if (titleEl) titleEl.textContent = cveId;
+                if (severityEl) {
+                    var norm = normalizeCveDetail(cveDetail, listCve && listCve._raw);
+                    var attrs = norm.attrs;
+                    var severity = attrs.severity || attrs.impact || "Unknown";
+                    var cvss = attrs.cvss3_score || attrs.cvss2_score;
+                    severityEl.style.display = "inline-flex";
+                    severityEl.innerHTML = '<span class="severity-badge ' + severityBadgeClass(severity) + '">' + escapeHtml(severity) + "</span>" + (cvss != null && Number(cvss) > 0 ? '<span class="cvss-score">CVSS ' + Number(cvss).toFixed(1) + "</span>" : "");
+                }
+
+                currentOverlayCveDetail = cveDetail;
+                currentOverlayDevices = devices;
+                buildCveSectionList(contentEl, cveDetail, devices, cveId, listCve);
+
+                if (explainPromise) {
+                    explainPromise.then(function(explResult) {
+                        if (currentOverlayCveId !== cveId) return;
+                        overlaySectionLoading.explain = false;
+                        if (explResult && typeof explResult === "object" && explResult.error != null) {
+                            overlaySectionErrors.explain = typeof explResult.error === "string" ? explResult.error : (explResult.hint || JSON.stringify(explResult.error));
+                            currentOverlayExplainText = null;
+                        } else {
+                            overlaySectionErrors.explain = null;
+                            var expl = explResult && explResult[cveId] ? explResult[cveId] : explResult;
+                            currentOverlayExplainText = explanationToShortText(expl);
+                        }
+                    }).catch(function(err) {
+                        if (currentOverlayCveId !== cveId) return;
+                        overlaySectionLoading.explain = false;
+                        overlaySectionErrors.explain = (err && err.message) ? err.message : String(err || "Failed to load explanation.");
+                        currentOverlayExplainText = null;
+                    });
+                } else {
+                    overlaySectionLoading.explain = false;
+                    overlaySectionErrors.explain = null;
+                    currentOverlayExplainText = "Set a device scope or choose an affected system to see an explanation.";
+                }
+
+                var footerEl = document.getElementById("modal-footer");
+                if (footerEl) footerEl.style.display = "none";
+            }
+
+            function escapeHtml(s) {
+                if (s == null) return "";
+                var div = document.createElement("div");
+                div.textContent = s;
+                return div.innerHTML;
+            }
+
+            function renderPlaybook(data) {
+                var container = document.getElementById("playbook-result-container");
+                var pre = document.getElementById("playbook-preview");
+                if (!container || !pre) return;
+                if (!data) { container.style.display = "none"; return; }
+                if (typeof data === "object" && data !== null && typeof data.result === "string") { data = data.result; }
+                var yaml = typeof data === "string" ? data : (data.playbook || data.content || (data.text !== undefined ? data.text : JSON.stringify(data)));
+                if (typeof yaml !== "string" || yaml.indexOf("MCP Resource not found") !== -1) {
+                    pre.textContent = "The playbook may have been created, but the result could not be loaded. Ask the assistant to run create_vuln_playbook and request the YAML content directly.";
+                    container.style.display = "block";
+                    document.getElementById("btn-download-playbook").onclick = function() {
+                        var a = document.createElement("a");
+                        a.href = "data:text/plain;charset=utf-8," + encodeURIComponent(pre.textContent);
+                        a.download = "remediation-playbook-note.txt";
+                        a.click();
+                    };
+                    return;
+                }
+                pre.textContent = yaml.length > 12000 ? yaml.slice(0, 12000) + "\n… (truncated)" : yaml;
+                container.style.display = "block";
+                document.getElementById("btn-download-playbook").onclick = function() {
+                    var a = document.createElement("a");
+                    a.href = "data:text/plain;charset=utf-8," + encodeURIComponent(pre.textContent);
+                    a.download = "remediation-playbook.yml";
+                    a.click();
+                };
+            }
+
+            document.getElementById("btn-refresh-cves").addEventListener("click", function() {
+                var btn = this;
+                btn.disabled = true;
+                loadCves();
+                setTimeout(function() { btn.disabled = false; }, 1500);
+            });
+
+            (function setupModal() {
+                var backdrop = document.getElementById("modal-backdrop");
+                var closeBtn = document.getElementById("modal-close");
+                if (closeBtn) closeBtn.addEventListener("click", closeModal);
+                if (backdrop) {
+                    backdrop.addEventListener("click", function(e) {
+                        if (e.target === backdrop) closeModal();
+                    });
+                }
+                document.addEventListener("keydown", function(e) {
+                    if (e.key !== "Escape" || !backdrop || !backdrop.classList.contains("visible")) return;
+                    var box = document.querySelector(".modal-box.modal-box--full");
+                    if (box) showSectionList();
+                    else closeModal();
+                });
+            })();
+            function showPlaybookDownloadBannerFromStorage() {
+                try {
+                    var savedYaml = sessionStorage.getItem("remediationPlaybookYaml");
+                    var savedCveId = sessionStorage.getItem("remediationPlaybookCveId");
+                    if (!savedYaml || !savedCveId) return;
+                    var banner = document.getElementById("playbook-download-banner");
+                    var btn = document.getElementById("playbook-download-banner-btn");
+                    if (!banner || !btn) return;
+                    banner.classList.add("visible");
+                    btn.onclick = function() {
+                        var a = document.createElement("a");
+                        a.href = "data:text/plain;charset=utf-8," + encodeURIComponent(savedYaml);
+                        a.download = "remediation-" + savedCveId + ".yml";
+                        a.click();
+                        sessionStorage.removeItem("remediationPlaybookYaml");
+                        sessionStorage.removeItem("remediationPlaybookCveId");
+                        banner.classList.remove("visible");
+                        log("playbook downloaded from banner, storage cleared");
+                    };
+                    log("showPlaybookDownloadBannerFromStorage: banner visible (playbook survived re-init)");
+                } catch (e) { log("showPlaybookDownloadBannerFromStorage:", e); }
+            }
+            function runInit() {
+                if (initDone) return;
+                initDone = true;
+                log("runInit: starting");
+                // Do not restore playbook banner from storage on init: show it only after user requests a playbook in this session.
+                var deviceParam = getDeviceFromUrl();
+                scopeDeviceParam = deviceParam ? String(deviceParam).trim() : null;
+                log("runInit: deviceParam=" + (deviceParam || "(null)") + " scopeDeviceParam=" + (scopeDeviceParam || "(null)") + " (before resolveDevice)");
+                updateScopeLabel();
+                resolveDevice(deviceParam).then(function() {
+                    log("runInit: resolveDevice done, scopeDisplayName=" + (scopeDisplayName || "(null)") + " scopeDeviceParam=" + (scopeDeviceParam || "(null)"));
+                    updateScopeLabel();
+                    loadCves();
+                });
+            }
+            function applyDeviceScope(deviceValue) {
+                log("applyDeviceScope called with deviceValue=" + (deviceValue == null ? "null" : JSON.stringify(deviceValue)));
+                if (deviceValue == null || String(deviceValue).trim() === "") {
+                    log("applyDeviceScope: skipped (empty)");
+                    return;
+                }
+                var trimmed = String(deviceValue).trim();
+                scopeDeviceParam = trimmed;
+                log("applyDeviceScope: set scopeDeviceParam=" + trimmed + ", calling updateScopeLabel + resolveDevice");
+                updateScopeLabel();
+                resolveDevice(trimmed).then(function() { updateScopeLabel(); loadCves(); });
+            }
+
+            try {
+                import("https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps?v=" + new Date().toISOString().split("T")[0]).then(function(mod) {
+                    var AppClass = mod.App;
+                    app = new AppClass({ name: "Remediation Dashboard", version: "1.0.0" });
+                    app.ontoolresult = async function(params) {
+                        var toolName = (params && (params.toolName || params.name)) || "";
+                        log("ontoolresult: INVOKED toolName=" + toolName + " paramKeys=" + (params ? Object.keys(params).join(",") : "none") + " hasResult=" + !!(params && params.result) + " hasArguments=" + !!(params && params.arguments));
+                        var data = parseToolResult(params);
+                        log("ontoolresult: data type=" + typeof data + (data && typeof data === "object" ? " keys=" + Object.keys(data).slice(0, 10).join(",") : (typeof data === "string" ? " len=" + data.length : "")));
+                        var deviceFromResult = data && typeof data === "object" && data.device != null && data.device !== "" ? String(data.device).trim() : null;
+                        var deviceFromArgs = (params && params.arguments && params.arguments.device != null && params.arguments.device !== "") ? String(params.arguments.device).trim() : null;
+                        var deviceToApply = deviceFromResult || deviceFromArgs;
+                        log("ontoolresult: deviceFromResult=" + (deviceFromResult || "(null)") + " deviceFromArgs=" + (deviceFromArgs || "(null)") + " deviceToApply=" + (deviceToApply || "(null)"));
+                        var isLoadDashboard = toolName.indexOf("load_remediation_dashboard") !== -1;
+                        if (!isLoadDashboard && deviceToApply) {
+                            log("ontoolresult: no tool name match for dashboard but deviceToApply present -> treat as load_remediation_dashboard");
+                            isLoadDashboard = true;
+                        }
+                        if (isLoadDashboard) {
+                            if (deviceToApply) {
+                                log("ontoolresult: load_remediation_dashboard -> applyDeviceScope(" + deviceToApply + ")");
+                                applyDeviceScope(deviceToApply);
+                            } else {
+                                log("ontoolresult: load_remediation_dashboard but no device to apply (deviceToApply empty)");
+                            }
+                            return;
+                        }
+                        if (toolName.indexOf("get_cves") !== -1 || toolName.indexOf("get_system_cves") !== -1) {
+                            renderCveList(data);
+                        }
+                        var isPlaybookResult = toolName.indexOf("create_vuln_playbook") !== -1 || toolName.indexOf("playbook") !== -1;
+                        if (!isPlaybookResult && data && (typeof data === "string" && (data.indexOf("---") === 0 || data.indexOf("hosts:") !== -1) || (params && params.result && params.result.structuredContent && typeof params.result.structuredContent.result === "string"))) {
+                            log("ontoolresult: no tool name match but result looks like playbook YAML, treating as playbook");
+                            isPlaybookResult = true;
+                        }
+                        if (isPlaybookResult) {
+                            log("ontoolresult: playbook result received, extracting YAML");
+                            var yaml = extractPlaybookYaml(data);
+                            log("ontoolresult: extractPlaybookYaml -> type=" + typeof yaml + " len=" + (yaml ? yaml.length : 0) + " hasError=" + (typeof yaml === "string" && yaml.indexOf("MCP Resource not found") !== -1));
+                            if (typeof yaml === "string" && yaml.length > 0 && yaml.indexOf("MCP Resource not found") === -1) {
+                                modalPlaybookYaml = yaml;
+                                var downloadBtn = document.getElementById("remediate-section-download-btn");
+                                var cveId = currentOverlayCveId;
+                                log("ontoolresult: modalPlaybookYaml set, downloadBtn=" + !!downloadBtn + " currentOverlayCveId=" + (cveId || "(null)"));
+                                if (downloadBtn && cveId) {
+                                    downloadBtn.style.display = "inline-block";
+                                    downloadBtn.removeAttribute("disabled");
+                                    downloadBtn.disabled = false;
+                                    downloadBtn.setAttribute("aria-disabled", "false");
+                                    downloadBtn.className = "btn";
+                                    downloadBtn.onclick = function() {
+                                        var yaml = modalPlaybookYaml || "";
+                                        var filename = "remediation-" + cveId + ".yml";
+                                        var statusEl = document.getElementById("remediate-section-download-status");
+                                        log("Download YAML clicked (ontoolresult), cveId=" + cveId + " yamlLen=" + (yaml ? yaml.length : 0));
+                                        if (!yaml) {
+                                            if (statusEl) { statusEl.innerHTML = ""; statusEl.appendChild(document.createTextNode("No playbook content to download.")); }
+                                            return;
+                                        }
+                                        if (lastFallbackBlobUrl) { try { URL.revokeObjectURL(lastFallbackBlobUrl); } catch (e) {} lastFallbackBlobUrl = null; }
+                                        var a = document.createElement("a");
+                                        a.download = filename;
+                                        a.setAttribute("download", filename);
+                                        a.style.display = "none";
+                                        try {
+                                            var blob = new Blob([yaml], { type: "text/plain;charset=utf-8" });
+                                            var url = URL.createObjectURL(blob);
+                                            a.href = url;
+                                            document.body.appendChild(a);
+                                            a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+                                            document.body.removeChild(a);
+                                            setTimeout(function() { URL.revokeObjectURL(url); }, 500);
+                                        } catch (e) { log("Download (ontoolresult): programmatic click failed", e); }
+                                        if (statusEl) {
+                                            statusEl.innerHTML = "";
+                                            var rawYaml = (typeof yaml === "string") ? yaml : "";
+                                            var msg = document.createElement("div");
+                                            msg.style.marginBottom = "8px";
+                                            msg.innerHTML = "To save the playbook: <strong>select all the YAML below</strong> (click in the box, then Ctrl+A or Cmd+A), then copy (Ctrl+C or Cmd+C) and paste into a new file. Save as <code>" + escapeHtml(filename) + "</code>.";
+                                            statusEl.appendChild(msg);
+                                            var textarea = document.createElement("textarea");
+                                            textarea.id = "remediate-yaml-selectable";
+                                            textarea.className = "remediate-yaml-selectable";
+                                            textarea.readOnly = true;
+                                            textarea.value = rawYaml;
+                                            textarea.setAttribute("aria-label", "Playbook YAML – select and copy");
+                                            textarea.title = "Select all (Ctrl+A / Cmd+A), then copy (Ctrl+C / Cmd+C)";
+                                            statusEl.appendChild(textarea);
+                                        }
+                                    };
+                                    log("ontoolresult: Save/Download button enabled and wired");
+                                } else {
+                                    log("ontoolresult: Save/Download NOT shown (missing downloadBtn or currentOverlayCveId)");
+                                }
+                            } else {
+                                log("ontoolresult: YAML invalid or empty, not enabling download button");
+                            }
+                            renderPlaybook(data);
+                        }
+                    };
+                    log("RemediationDashboard: app.ontoolresult registered, connect will run runInit");
+                    if (app.connect) {
+                        var t = setTimeout(runInit, 2500);
+                        app.connect().then(function() { clearTimeout(t); runInit(); }).catch(function() { clearTimeout(t); runInit(); });
+                    } else runInit();
+                }).catch(function() { runInit(); });
+            } catch (e) { runInit(); }
+
+            window.addEventListener("message", function(e) {
+                var d = e.data;
+                if (!d || typeof d !== "object") return;
+                var deviceFromMessage = null;
+                if (d.device != null && d.device !== "") {
+                    deviceFromMessage = String(d.device).trim();
+                }
+                if (!deviceFromMessage && d.method) {
+                    var method = String(d.method);
+                    if (method.indexOf("tool-input") !== -1 || method.indexOf("tool-result") !== -1) {
+                        var params = d.params || d;
+                        var args = params.arguments || params;
+                        var res = params.result != null ? params.result : (params.content ? null : params);
+                        if (args && args.device != null && args.device !== "") deviceFromMessage = String(args.device).trim();
+                        if (!deviceFromMessage && res && typeof res === "object") {
+                            if (res.device != null && res.device !== "") deviceFromMessage = String(res.device).trim();
+                            if (!deviceFromMessage && res.structuredContent && res.structuredContent.result && res.structuredContent.result.device != null)
+                                deviceFromMessage = String(res.structuredContent.result.device).trim();
+                        }
+                        if (deviceFromMessage) log("message: extracted device from " + method + " -> " + deviceFromMessage);
+                    }
+                }
+                if (deviceFromMessage) {
+                    log("message: device=" + deviceFromMessage + " scopeDeviceParam=" + (scopeDeviceParam || "(null)"));
+                    if (scopeDeviceParam != null && scopeDeviceParam !== "") {
+                        log("message: skipping applyDeviceScope (already have scope)");
+                        return;
+                    }
+                    applyDeviceScope(deviceFromMessage);
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

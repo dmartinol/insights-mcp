@@ -124,7 +124,7 @@ class InsightsMCP(FastMCP):
         if not readonly:
             return
 
-        tools = asyncio.run(self.list_tools())
+        tools = asyncio.run(self.list_tools())  # type: ignore[attr-defined]
         tools_to_remove = [
             tool.name
             for tool in tools

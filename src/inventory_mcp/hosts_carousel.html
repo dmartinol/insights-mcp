@@ -980,7 +980,9 @@
                 const cveId = cve.id || attrs.synopsis || "Unknown CVE";
                 const severity = getSeverityLabel(attrs.cvss3_score || attrs.cvss2_score, attrs.severity);
                 const severityClass = getSeverityClass(attrs.cvss3_score || attrs.cvss2_score, attrs.severity);
-                const cvssScore = parseFloat(attrs.cvss3_score || attrs.cvss2_score || 0);
+                const cvssScoreNum = Number(parseFloat(attrs.cvss3_score || attrs.cvss2_score || 0));
+                const cvssScore = (typeof cvssScoreNum === 'number' && !Number.isNaN(cvssScoreNum)) ? cvssScoreNum : 0;
+                const cvssDisplay = (cvssScore > 0) ? cvssScore.toFixed(1) : "";
                 const description = attrs.description || attrs.synopsis || "";
                 const publicDate = attrs.public_date ? new Date(attrs.public_date).toLocaleDateString() : "N/A";
 
@@ -988,7 +990,7 @@
                     <div class="cve-card">
                         <div class="cve-header">
                             <span class="cve-id" data-cve-id="${escapeHtml(cveId)}">${escapeHtml(cveId)}</span>
-                            <span class="cvss-badge ${severityClass}">${severity} ${cvssScore > 0 ? cvssScore.toFixed(1) : ""}</span>
+                            <span class="cvss-badge ${severityClass}">${severity} ${cvssDisplay}</span>
                         </div>
                         <div class="cve-description">${escapeHtml(description.substring(0, 200))}${description.length > 200 ? '...' : ''}</div>
                         <div class="cve-meta">
@@ -1051,7 +1053,9 @@
             const content = document.getElementById("cve-details-content");
             const severity = getSeverityLabel(attrs.cvss3_score || attrs.cvss2_score, attrs.severity);
             const severityClass = getSeverityClass(attrs.cvss3_score || attrs.cvss2_score, attrs.severity);
-            const cvssScore = parseFloat(attrs.cvss3_score || attrs.cvss2_score || 0);
+            const cvssScoreNum = Number(parseFloat(attrs.cvss3_score || attrs.cvss2_score || 0));
+            const cvssScore = (typeof cvssScoreNum === 'number' && !Number.isNaN(cvssScoreNum)) ? cvssScoreNum : 0;
+            const cvssDisplay = (cvssScore > 0) ? cvssScore.toFixed(1) : "N/A";
 
             let html = `
                 <div class="stat-grid">
@@ -1061,7 +1065,7 @@
                     </div>
                     <div class="stat-card">
                         <div class="stat-label">CVSS Score</div>
-                        <div class="stat-value">${cvssScore > 0 ? cvssScore.toFixed(1) : "N/A"}</div>
+                        <div class="stat-value">${cvssDisplay}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-label">Public Date</div>

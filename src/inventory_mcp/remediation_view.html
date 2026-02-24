@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<!--
+  CVE Remediation View - Consistent with Host Inventory Carousel
+  Workflow: Discover CVEs → Affected systems → Explain → Create playbook
+  Receives tool results via ontoolresult.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>CVE Remediation - Mission Control</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --font-sans: system-ui, -apple-system, sans-serif;
+            --color-text-primary: #333;
+            --color-text-secondary: #666;
+            --color-bg: #fff;
+            --color-bg-secondary: #f5f5f5;
+            --color-border: #ddd;
+            --color-primary: #0066cc;
+            --color-success: #28a745;
+            --color-warning: #ffc107;
+            --color-danger: #dc3545;
+            --color-unknown: #6c757d;
+        }
+        [data-theme="dark"] {
+            --color-text-primary: #eee;
+            --color-text-secondary: #999;
+            --color-bg: #1a1a1a;
+            --color-bg-secondary: #252525;
+            --color-border: #444;
+            --color-primary: #4da6ff;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme]) {
+                --color-text-primary: #eee;
+                --color-text-secondary: #999;
+                --color-bg: #1a1a1a;
+                --color-bg-secondary: #252525;
+                --color-border: #444;
+                --color-primary: #4da6ff;
+            }
+        }
+        body {
+            font-family: var(--font-sans);
+            background: var(--color-bg);
+            color: var(--color-text-primary);
+            padding: 16px;
+            min-height: 100vh;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        .remediation-header {
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--color-border);
+        }
+        .remediation-title { font-size: 20px; font-weight: 700; }
+        .progress-steps { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+        .step-badge {
+            padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+            background: var(--color-border); color: var(--color-text-secondary);
+        }
+        .step-badge.done { background: var(--color-success); color: white; }
+        .step-badge.active { background: var(--color-primary); color: white; }
+        .step-badge.error { background: var(--color-danger); color: white; }
+        .step-panel {
+            display: none; margin-bottom: 24px; padding: 20px;
+            background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: 12px;
+        }
+        .step-panel.visible { display: block; }
+        .step-panel h3 {
+            font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;
+            color: var(--color-text-secondary); margin-bottom: 12px;
+        }
+        .step-content { font-size: 14px; line-height: 1.5; }
+        .cve-list, .system-list { list-style: none; }
+        .cve-list li, .system-list li {
+            padding: 8px 0; border-bottom: 1px solid var(--color-border); font-family: monospace;
+        }
+        .loading { text-align: center; padding: 24px; color: var(--color-text-secondary); }
+        .error-message {
+            padding: 16px; background: #fee; border: 1px solid var(--color-danger);
+            border-radius: 8px; color: var(--color-danger);
+        }
+        .empty-state { padding: 16px; color: var(--color-text-secondary); font-style: italic; }
+        pre.playbook-preview {
+            background: var(--color-bg); border: 1px solid var(--color-border);
+            border-radius: 8px; padding: 16px; overflow: auto; font-size: 12px; max-height: 300px;
+        }
+        .status-line { margin-bottom: 8px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="remediation-header">
+            <h1 class="remediation-title">Mission Control: CVE Remediation</h1>
+        </div>
+        <div class="progress-steps">
+            <span class="step-badge" id="step1-badge">1. CVEs</span>
+            <span class="step-badge" id="step2-badge">2. Systems</span>
+            <span class="step-badge" id="step3-badge">3. Explain</span>
+            <span class="step-badge" id="step4-badge">4. Playbook</span>
+        </div>
+        <p id="progress-message" class="status-line">Ask the assistant to remediate a CVE, or run the workflow.</p>
+        <div id="step1-panel" class="step-panel">
+            <h3>Step 1 — Discover or validate CVEs</h3>
+            <div id="step1-content" class="step-content"><div class="empty-state">No CVE data yet.</div></div>
+        </div>
+        <div id="step2-panel" class="step-panel">
+            <h3>Step 2 — Affected systems</h3>
+            <div id="step2-content" class="step-content"><div class="empty-state">No system list yet.</div></div>
+        </div>
+        <div id="step3-panel" class="step-panel">
+            <h3>Step 3 — Why these CVEs affect the environment</h3>
+            <div id="step3-content" class="step-content"><div class="empty-state">No explanation yet.</div></div>
+        </div>
+        <div id="step4-panel" class="step-panel">
+            <h3>Step 4 — Remediation playbook</h3>
+            <div id="step4-content" class="step-content"><div class="empty-state">No playbook yet.</div></div>
+        </div>
+    </div>
+    <script type="module">
+        (async function() {
+            var stepBadges = [document.getElementById("step1-badge"), document.getElementById("step2-badge"), document.getElementById("step3-badge"), document.getElementById("step4-badge")];
+            var stepPanels = [document.getElementById("step1-panel"), document.getElementById("step2-panel"), document.getElementById("step3-panel"), document.getElementById("step4-panel")];
+            var stepContents = [document.getElementById("step1-content"), document.getElementById("step2-content"), document.getElementById("step3-content"), document.getElementById("step4-content")];
+            function setStepState(i, state) {
+                var b = stepBadges[i]; if (!b) return;
+                b.classList.remove("active", "done", "error");
+                if (state === "done") b.classList.add("done"); else if (state === "active") b.classList.add("active"); else if (state === "error") b.classList.add("error");
+            }
+            function showStep(i) { stepPanels.forEach(function(p, j) { p.classList.toggle("visible", j === i); }); }
+            function setContentSafe(container, text) { if (container) container.textContent = text; }
+            function setContentList(container, items) {
+                if (!container) return;
+                container.innerHTML = "";
+                var ul = document.createElement("ul"); ul.className = "system-list";
+                items.forEach(function(item) { var li = document.createElement("li"); li.textContent = item; ul.appendChild(li); });
+                container.appendChild(ul);
+            }
+            function setContentError(container, msg) {
+                if (!container) return;
+                container.innerHTML = ""; var div = document.createElement("div"); div.className = "error-message"; div.textContent = msg; container.appendChild(div);
+            }
+            function setContentEmpty(container, msg) {
+                if (!container) return;
+                container.innerHTML = ""; var div = document.createElement("div"); div.className = "empty-state"; div.textContent = msg; container.appendChild(div);
+            }
+            function setContentPre(container, text) {
+                if (!container) return;
+                container.innerHTML = ""; var pre = document.createElement("pre"); pre.className = "playbook-preview"; pre.textContent = text; container.appendChild(pre);
+            }
+            var App = function() { this.ontoolresult = null; this.connect = function() {}; this.callServerTool = function() { return {}; }; };
+            try {
+                var mod = await import("https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps?v=" + new Date().toISOString().split("T")[0]);
+                App = mod.App;
+            } catch (e) { console.warn("MCP Apps SDK not loaded:", e.message); }
+            var app = new App({ name: "CVE Remediation View", version: "1.0.0" });
+            function parseToolResult(params) {
+                if (params && params.structuredContent && params.structuredContent.result !== undefined) return params.structuredContent.result;
+                if (params && params.structuredContent) return params.structuredContent;
+                if (params && params.content && params.content[0] && params.content[0].type === "text") { try { return JSON.parse(params.content[0].text); } catch (err) { return null; } }
+                return null;
+            }
+            app.ontoolresult = async function(params) {
+                var toolName = (params && (params.toolName || params.name)) || "";
+                var data = parseToolResult(params);
+                var progressEl = document.getElementById("progress-message");
+                if (toolName.indexOf("get_cves") !== -1 || toolName.indexOf("get_cve") !== -1) {
+                    setStepState(0, "done"); showStep(0);
+                    var c = stepContents[0];
+                    if (!data || typeof data === "string") setContentError(c, data || "No CVE data.");
+                    else {
+                        var list = data.data || data.results || (Array.isArray(data) ? data : []);
+                        var items = Array.isArray(list) ? list : [];
+                        var cveIds = items.map(function(x) { return x.id || (x.attributes && x.attributes.synopsis) || x; }).filter(Boolean);
+                        if (cveIds.length === 0) setContentEmpty(c, "No CVEs found."); else setContentList(c, cveIds);
+                    }
+                    if (progressEl) progressEl.textContent = "Step 1 done. Next: affected systems and explanation.";
+                } else if (toolName.indexOf("get_cve_systems") !== -1) {
+                    setStepState(1, "done"); showStep(1);
+                    var c = stepContents[1];
+                    if (!data || typeof data === "string") setContentError(c, data || "No system data.");
+                    else {
+                        var list = data.data || data.results || (Array.isArray(data) ? data : []);
+                        var uuids = (Array.isArray(list) ? list : []).map(function(s) { return s.id || s.inventory_id || (s.system && s.system.id); }).filter(Boolean);
+                        if (uuids.length === 0) setContentEmpty(c, "No affected systems."); else setContentList(c, uuids.slice(0, 50).concat(uuids.length > 50 ? ["… and " + (uuids.length - 50) + " more"] : []));
+                    }
+                    if (progressEl) progressEl.textContent = "Step 2 done. Explanation and playbook next.";
+                } else if (toolName.indexOf("explain_cves") !== -1) {
+                    setStepState(2, "done"); showStep(2);
+                    var c = stepContents[2];
+                    if (!data || typeof data === "string") setContentError(c, data || "No explanation.");
+                    else {
+                        var vmaas = data.vmaas || data;
+                        var pkgs = vmaas.affected_packages || [];
+                        if (pkgs.length) setContentList(c, pkgs.map(function(p) { return typeof p === "string" ? p : (p.name || JSON.stringify(p)); })); else setContentSafe(c, JSON.stringify(data).slice(0, 1000));
+                    }
+                    if (progressEl) progressEl.textContent = "Step 3 done. Playbook when created.";
+                } else if (toolName.indexOf("create_vuln_playbook") !== -1 || toolName.indexOf("playbook") !== -1) {
+                    setStepState(3, "done"); showStep(3);
+                    var c = stepContents[3];
+                    if (!data) setContentEmpty(c, "No playbook content.");
+                    else { var yaml = typeof data === "string" ? data : (data.playbook || data.content || JSON.stringify(data)); setContentPre(c, yaml.length > 8000 ? yaml.slice(0, 8000) + "\n… (truncated)" : yaml); }
+                    if (progressEl) progressEl.textContent = "Playbook created. Copy YAML or use link from assistant.";
+                }
+            };
+            if (app.connect) await app.connect();
+        })();
+    </script>
+</body>
+</html>

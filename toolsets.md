@@ -44,7 +44,10 @@ Tools marked as read-write **`(rw)`** are excluded by default. Use the `--all-to
 - `get_host_details`: Get detailed information for specific hosts by their IDs.
 - `get_host_system_profile`: Get detailed system profile information for specific hosts.
 - `get_host_tags`: Get tags for specific hosts.
+- `get_skill`: Load a skill by name or URI. Returns skill content and metadata for the host when opening a skill UI.
 - `list_hosts`: List hosts with filtering and sorting options.
+- `list_skills`: List skills (e.g. remediation dashboard). Used by the host to discover skills before opening a skill UI.
+- `load_remediation_dashboard_skill`: Open the Remediation Dashboard and load its skill content into context.
 
 ## content-sources
 - `list_repositories`: List repositories with filtering and pagination options.

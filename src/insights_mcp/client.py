@@ -121,8 +121,21 @@ class InsightsClientBase(httpx.AsyncClient):
         except httpx.HTTPStatusError as e:
             content = self.get_error_message(e)
             return content
+        except httpx.TimeoutException as exc:
+            msg = str(exc) or type(exc).__name__
+            return {
+                "error": f"Request timed out: {msg}",
+                "hint": "Check network access to console.redhat.com, proxy settings, or try again.",
+            }
+        except httpx.ConnectError as exc:
+            msg = str(exc) or type(exc).__name__
+            return {
+                "error": f"Connection failed: {msg}",
+                "hint": "Check network, firewall, and proxy (HTTP_PROXY/HTTPS_PROXY).",
+            }
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            return {"Unhandled error": str(exc)}
+            msg = str(exc) or type(exc).__name__
+            return {"error": f"{type(exc).__name__}: {msg}"}
 
     def get_error_message(self, e: httpx.HTTPStatusError) -> str:
         """Generate appropriate error message based on HTTP status code.

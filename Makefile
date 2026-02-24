@@ -202,11 +202,11 @@ generate-docs: usage.md toolsets.md docs/architecture-structure.svg docs/archite
 usage.md: $(ALL_PYTHON_FILES) Makefile
 	uv tool install -e .
 	echo '```' > $@
-	$(SCRIPT_NAME) --help >> $@
+	uv run $(SCRIPT_NAME) --help >> $@
 	echo '```' >> $@
 
 toolsets.md: $(ALL_PYTHON_FILES) Makefile
-	uv run python -m insights_mcp --toolset-help > $@
+	uv run $(SCRIPT_NAME) --toolset-help > $@
 
 docs/architecture-structure.svg docs/architecture-deployment.svg docs/architecture-structure.png docs/architecture-deployment.png: HACKING.md scripts/generate_diagrams.py
 	uv run python scripts/generate_diagrams.py --format svg,png

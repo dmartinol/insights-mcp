@@ -52,6 +52,10 @@ The project uses a **toolset-based architecture** where each service is implemen
 - **HTTP**: RESTful API with streaming capabilities
 - **SSE**: Server-sent events for real-time web clients
 
+### MCP Apps configuration
+
+App metadata for tools and resources (UI linking, CSP) uses the FastMCP 3 typed API from `fastmcp.server.apps`: `AppConfig` and `ResourceCSP`. See [FastMCP Apps (low-level)](https://gofastmcp.com/apps/low-level). Inventory and vulnerability toolsets use `app=AppConfig(...)` for tools that link to a UI and for UI resources' CSP.
+
 ## Development Workflow for AI Assistants
 
 ### Quick Setup
