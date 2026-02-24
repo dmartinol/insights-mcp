@@ -29,6 +29,10 @@ mcp = InsightsMCP(
     Dashboard. The dashboard orchestrates tools (get_cves, get_cve_systems, explain_cves,
     create_vuln_playbook) from within the UI.
 
+    When the user wants to **view the fleet** or **explore systems with their CVEs**: call
+    **inventory_load_inventory_dashboard_skill** to open the Inventory Dashboard. The dashboard shows
+    a carousel of hosts, CVE severity counts per host, CVE details, and remediation.
+
     $container_brand_long Host Inventory requires correct RBAC permissions to be able to use the tools. Ensure that your
     Service Account has at least this role:
     - Inventory Hosts viewer
@@ -39,6 +43,9 @@ mcp = InsightsMCP(
 REMEDIATION_DASHBOARD_UI_RESOURCE_URI = "ui://remediation_dashboard"
 REMEDIATION_DASHBOARD_UI_MOUNTED_URI = "ui://inventory_/remediation_dashboard"
 
+INVENTORY_DASHBOARD_UI_RESOURCE_URI = "ui://inventory_dashboard"
+INVENTORY_DASHBOARD_UI_MOUNTED_URI = "ui://inventory_/inventory_dashboard"
+
 
 @mcp.resource(  # type: ignore[call-arg]  # pylint: disable=unexpected-keyword-arg
     REMEDIATION_DASHBOARD_UI_RESOURCE_URI,
@@ -47,6 +54,15 @@ REMEDIATION_DASHBOARD_UI_MOUNTED_URI = "ui://inventory_/remediation_dashboard"
 def remediation_dashboard_ui() -> str:
     """Load the remediation dashboard UI (orchestration in UI; invokes MCP tools)."""
     return EMBEDDED_REMEDIATION_DASHBOARD_HTML
+
+
+@mcp.resource(  # type: ignore[call-arg]  # pylint: disable=unexpected-keyword-arg
+    INVENTORY_DASHBOARD_UI_RESOURCE_URI,
+    app=AppConfig(csp=ResourceCSP(resource_domains=["https://unpkg.com"])),
+)
+def inventory_dashboard_ui() -> str:
+    """Load the inventory dashboard UI (fleet carousel with CVE severity per host)."""
+    return EMBEDDED_INVENTORY_DASHBOARD_HTML
 
 
 REMEDIATION_DASHBOARD_SKILL_RESOURCE_URI = "skill://remediation-dashboard"
@@ -92,6 +108,47 @@ def remediation_dashboard_skill() -> str:
     return REMEDIATION_DASHBOARD_SKILL_CONTENT
 
 
+INVENTORY_DASHBOARD_SKILL_RESOURCE_URI = "skill://inventory-dashboard"
+INVENTORY_DASHBOARD_SKILL_MOUNTED_URI = "skill://inventory_/inventory-dashboard"
+
+_INVENTORY_DASHBOARD_SKILL_PATHS = [
+    Path(__file__).parent.parent.parent / "skills" / "rh-sre" / "inventory-dashboard.md",
+    Path("skills/rh-sre/inventory-dashboard.md"),
+]
+_INVENTORY_DASHBOARD_SKILL_FALLBACK = (
+    "Inventory dashboard: open UI at ui://inventory_/inventory_dashboard; "
+    "dashboard shows fleet carousel, CVE severity per host, CVE details and remediation."
+)
+
+
+def _load_inventory_dashboard_skill_at_init() -> str:
+    """Load the inventory-dashboard skill markdown at resource registration time (once)."""
+    for path in _INVENTORY_DASHBOARD_SKILL_PATHS:
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+    return _INVENTORY_DASHBOARD_SKILL_FALLBACK
+
+
+INVENTORY_DASHBOARD_SKILL_CONTENT = _load_inventory_dashboard_skill_at_init()
+
+
+@mcp.resource(
+    INVENTORY_DASHBOARD_SKILL_RESOURCE_URI,
+    annotations={"readOnlyHint": True},
+    mime_type="text/markdown",
+    meta={
+        "ui": {
+            "resourceUri": INVENTORY_DASHBOARD_UI_MOUNTED_URI,
+            "displayHints": {"title": "Inventory Dashboard", "description": "Fleet view with CVE severity per host"},
+        },
+        "ui/resourceUri": INVENTORY_DASHBOARD_UI_MOUNTED_URI,
+    },
+)
+def inventory_dashboard_skill() -> str:
+    """Serve the inventory-dashboard skill (content loaded at resource registration time)."""
+    return INVENTORY_DASHBOARD_SKILL_CONTENT
+
+
 # Skills discoverable by the host (list_skills / get_skill). Required by some hosts to discover
 # and load skills before opening the UI.
 INVENTORY_SKILLS = [
@@ -100,6 +157,12 @@ INVENTORY_SKILLS = [
         "uri": REMEDIATION_DASHBOARD_SKILL_MOUNTED_URI,
         "title": "Remediation Dashboard",
         "description": "CVE remediation and playbook creation",
+    },
+    {
+        "name": "inventory-dashboard",
+        "uri": INVENTORY_DASHBOARD_SKILL_MOUNTED_URI,
+        "title": "Inventory Dashboard",
+        "description": "Fleet view with CVE severity per host, CVE details and remediation",
     },
 ]
 
@@ -161,10 +224,26 @@ def _load_remediation_dashboard_html() -> str:
         return html_path.read_text(encoding="utf-8")
 
 
-# Embedded HTML for MCP Apps (carousel, host details, remediation dashboard)
+def _load_inventory_dashboard_html() -> str:
+    """Load the inventory dashboard HTML (fleet carousel with CVE severity per host)."""
+    try:
+        if hasattr(importlib.resources, "files"):
+            return (
+                importlib.resources.files("inventory_mcp")
+                .joinpath("inventory_dashboard.html")
+                .read_text(encoding="utf-8")
+            )
+        return importlib.resources.read_text("inventory_mcp", "inventory_dashboard.html", encoding="utf-8")
+    except (FileNotFoundError, ModuleNotFoundError, AttributeError, TypeError):  # pylint: disable=broad-exception-caught
+        html_path = Path(__file__).parent / "inventory_dashboard.html"
+        return html_path.read_text(encoding="utf-8")
+
+
+# Embedded HTML for MCP Apps (carousel, host details, remediation dashboard, inventory dashboard)
 EMBEDDED_CAROUSEL_HTML = _load_carousel_html()
 EMBEDDED_HOST_DETAILS_HTML = _load_host_details_html()
 EMBEDDED_REMEDIATION_DASHBOARD_HTML = _load_remediation_dashboard_html()
+EMBEDDED_INVENTORY_DASHBOARD_HTML = _load_inventory_dashboard_html()
 
 
 # @mcp.resource(
@@ -356,10 +435,15 @@ async def get_skill(
     name_or_uri = (skill_name or "").strip()
     for skill in INVENTORY_SKILLS:
         if skill["name"] == name_or_uri or skill.get("uri") == name_or_uri:
+            content = ""
+            if skill["name"] == "remediation-dashboard":
+                content = REMEDIATION_DASHBOARD_SKILL_CONTENT
+            elif skill["name"] == "inventory-dashboard":
+                content = INVENTORY_DASHBOARD_SKILL_CONTENT
             return {
                 "skill_name": skill["name"],
                 "skill_uri": skill["uri"],
-                "content": REMEDIATION_DASHBOARD_SKILL_CONTENT if skill["name"] == "remediation-dashboard" else "",
+                "content": content,
                 "title": skill.get("title", skill["name"]),
                 "description": skill.get("description", ""),
             }
@@ -424,5 +508,68 @@ async def load_remediation_dashboard_skill(
             )
             + "The dashboard loads critical CVEs, shows explanation and affected devices per CVE, "
             "and supports creating or downloading remediation playbooks via MCP tools."
+        ),
+    }
+
+
+@mcp.tool(  # type: ignore[call-overload]  # pylint: disable=unexpected-keyword-arg
+    name="load_inventory_dashboard_skill",
+    annotations={"readOnlyHint": True},
+    app=AppConfig(resource_uri=INVENTORY_DASHBOARD_UI_MOUNTED_URI),
+)
+async def load_inventory_dashboard_skill(
+    device: Annotated[
+        str,
+        Field(
+            "",
+            description=(
+                "Optional. Scope the dashboard to a single device: pass a system UUID or display name. "
+                "If empty, the dashboard shows all the fleet. Use when the user says e.g. "
+                "'open the inventory dashboard for hostname' or 'inventory dashboard for system X'."
+            ),
+        ),
+    ] = "",
+) -> dict[str, Any]:
+    """Open the Inventory Dashboard and load its skill content into context.
+
+    Call this when the user wants to view the fleet, see CVE severity per host, or explore
+    systems with their vulnerabilities. The user can request:
+
+    - **Full fleet**: "Show the inventory dashboard", "Open the inventory dashboard"
+      → call with no device (or device empty). Dashboard shows all systems in a carousel.
+
+    - **Single device**: "Open the inventory dashboard for <hostname>", "Inventory dashboard for system X"
+      → call with device set to the system UUID or display name. Dashboard will resolve
+        the device and show that system with its CVEs.
+
+    The tool returns the skill content; the host may open the Inventory Dashboard UI.
+    When device is provided, the host should open the UI with that scope (e.g. append
+    ?device=<value> to the UI resource URL). The dashboard shows a carousel of hosts,
+    severity buttons (Critical, Important, Moderate, Low) per host, CVE list on click,
+    CVE details modal, and remediation playbook creation.
+
+    Returns:
+        Dict with "content", "instructions", "skill_name", "skill_uri", and "device"
+        (present when scoped to a device, for the host to pass to the UI).
+    """
+    device_value = device.strip() or None
+    return {
+        "skill_name": "inventory-dashboard",
+        "skill_uri": INVENTORY_DASHBOARD_SKILL_MOUNTED_URI,
+        "content": INVENTORY_DASHBOARD_SKILL_CONTENT,
+        "device": device_value,
+        "instructions": (
+            "The Inventory Dashboard UI opens when this tool is invoked. "
+            + (
+                "To scope the dashboard to the requested device, the host MUST do one of: "
+                "(1) Append ?device=" + (device_value or "") + " to the UI resource URL when opening the iframe, or "
+                "(2) Send ui/notifications/tool-input or ui/notifications/tool-result to the view with "
+                "params.arguments.device or params.result.device set to this value. "
+                "Otherwise the dashboard will show 'All the fleet'. "
+                if device_value
+                else "Open the UI for the full fleet (no device parameter). "
+            )
+            + "The dashboard loads hosts in a carousel, shows CVE severity counts per host, "
+            "and supports drilling into CVE details and creating remediation playbooks via MCP tools."
         ),
     }

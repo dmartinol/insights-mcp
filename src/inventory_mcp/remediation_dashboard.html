@@ -78,6 +78,12 @@
         .section-head-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
         .section-head-row h3 { margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-secondary); }
         .cve-list-summary { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 10px; }
+        .cve-severity-counters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+        .cve-severity-counter { padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; color: #fff; }
+        .cve-severity-counter.critical { background: var(--severity-critical); }
+        .cve-severity-counter.important { background: var(--severity-high); }
+        .cve-severity-counter.moderate { background: var(--severity-medium); color: #333; }
+        .cve-severity-counter.low { background: var(--severity-low); }
         .btn { padding: 8px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; background: var(--color-primary); color: white; }
         .btn:hover { opacity: 0.9; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -185,8 +191,8 @@
             border-radius: 12px;
             max-width: 92vw;
             width: 800px;
-            height: min(90vh, 90dvh);
-            max-height: min(90vh, 90dvh);
+            height: min(92vh, 92dvh);
+            max-height: min(92vh, 92dvh);
             min-height: 0;
             display: flex;
             flex-direction: column;
@@ -197,8 +203,8 @@
         .modal-box.modal-box--full {
             width: 95vw;
             max-width: 95vw;
-            height: 95vh;
-            max-height: 95vh;
+            height: min(98vh, 98dvh);
+            max-height: min(98vh, 98dvh);
         }
         .cve-section-list { padding: 16px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
         .cve-section-btn {
@@ -322,6 +328,7 @@
             var scopeDeviceParam = null;
             var initDone = false;
             var currentOverlayCveId = null;
+            var currentOverlaySectionId = null;
             var currentOverlayUuids = [];
             var currentOverlayCveDetail = null;
             var currentOverlayDevices = null;
@@ -331,6 +338,13 @@
             var overlaySectionLoading = { description: false, explain: false, devices: false };
             var overlaySectionErrors = { description: null, explain: null, devices: null };
             var lastFallbackBlobUrl = null;
+            var remediationSelectedUuids = {};
+            function getSelectedRemediationUuids(cveId) {
+                var sel = remediationSelectedUuids[cveId];
+                if (sel && sel.size > 0) return Array.from(sel);
+                if (scopeSystemUuid) return [scopeSystemUuid];
+                return currentOverlayUuids.length ? currentOverlayUuids : [];
+            }
 
             var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
             var EXPLAIN_MAX_CHARS = 400;
@@ -417,8 +431,8 @@
                     container.innerHTML = "<div class=\"empty-state\">Loading CVEs…</div>";
                 }
                 var promise = scopeSystemUuid
-                    ? callTool("vulnerability__get_system_cves", { system_uuid: scopeSystemUuid, sort: "-cvss_score", limit: 5 })
-                    : callTool("vulnerability__get_cves", { sort: "-cvss_score", limit: 5, advisory_available: "true" });
+                    ? callTool("vulnerability__get_system_cves", { system_uuid: scopeSystemUuid, sort: "-cvss_score", limit: 100 })
+                    : callTool("vulnerability__get_cves", { sort: "-cvss_score", limit: 100, advisory_available: "true" });
                 promise.then(function(result) {
                     if (result) renderCveList(result);
                     else {
@@ -457,8 +471,10 @@
                 }
                 document.body.style.overflow = "";
                 currentOverlayCveId = null;
+                currentOverlaySectionId = null;
                 currentOverlayUuids = [];
                 currentOverlayCveDetail = null;
+                remediationSelectedUuids = {};
                 currentOverlayDevices = null;
                 currentOverlayExplainText = null;
                 currentOverlayListCve = null;
@@ -512,12 +528,13 @@
                     log("callTool: app or callServerTool not available");
                     return Promise.resolve(null);
                 }
-                return app.callServerTool({ name: toolName, arguments: args || {} }).then(function(raw) {
-                    return unwrapCallResult(raw);
-                }).catch(function(err) {
-                    log("callTool error:", err);
-                    return Promise.resolve(null);
-                });
+                return app.callServerTool({ name: toolName, arguments: args || {} })
+                    .then(function(raw) { return unwrapCallResult(raw); })
+                    .catch(function(err) {
+                        log("callTool error:", err);
+                        var msg = (err && (err.message || err.toString())) || "Request failed";
+                        return Promise.resolve({ error: msg });
+                    });
             }
 
             function parseToolResult(params) {
@@ -573,12 +590,25 @@
                 return "";
             }
 
-            function severityClass(impact) {
-                var i = (impact || "").toLowerCase();
-                if (i === "critical") return "critical";
-                if (i === "high" || i === "important") return "high";
-                if (i === "medium" || i === "moderate") return "medium";
+            function normalizeImpact(val) {
+                if (val == null || val === "") return "low";
+                if (typeof val === "number") {
+                    if (val >= 7) return "critical";
+                    if (val >= 5) return "important";
+                    if (val >= 3) return "moderate";
+                    return "low";
+                }
+                var s = String(val).toLowerCase();
+                if (s.indexOf("critical") !== -1) return "critical";
+                if (s.indexOf("important") !== -1 || s === "high") return "important";
+                if (s.indexOf("moderate") !== -1 || s === "medium") return "moderate";
                 return "low";
+            }
+            function severityClass(impact) {
+                var cls = normalizeImpact(impact);
+                if (cls === "important") return "high";
+                if (cls === "moderate") return "medium";
+                return cls;
             }
             function severityRank(impact) {
                 var i = (impact || "").toLowerCase();
@@ -627,7 +657,7 @@
                     container.appendChild(errEl);
                     return;
                 }
-                var list = (data && data.data) || (Array.isArray(data) ? data : []);
+                var list = (data && data.data) || (data && data.results) || (Array.isArray(data) ? data : []);
                 var meta = (data && data.meta) || {};
                 var totalCves = meta.total_items != null ? meta.total_items : (meta.total != null ? meta.total : meta.count != null ? meta.count : list.length);
                 cveList = list.map(function(item) {
@@ -636,7 +666,7 @@
                     return {
                         id: id,
                         cvss: attrs.cvss3_score || attrs.cvss2_score || "-",
-                        impact: (attrs.impact || "low").toLowerCase(),
+                        impact: normalizeImpact(attrs.impact || attrs.severity),
                         systems_affected: attrs.systems_affected != null ? attrs.systems_affected : (item.systems_affected != null ? item.systems_affected : "-"),
                         _raw: item
                     };
@@ -654,14 +684,33 @@
                     container.firstChild.textContent = "No CVEs found.";
                     return;
                 }
+                var counts = { critical: 0, important: 0, moderate: 0, low: 0 };
+                cveList.forEach(function(c) {
+                    var cls = severityClass(c.impact);
+                    if (cls === "high") cls = "important";
+                    if (cls === "medium") cls = "moderate";
+                    if (counts[cls] !== undefined) counts[cls]++;
+                });
+                var counterRow = document.createElement("div");
+                counterRow.className = "cve-severity-counters";
+                ["critical", "important", "moderate", "low"].forEach(function(sev) {
+                    var n = counts[sev] || 0;
+                    var label = sev.charAt(0).toUpperCase() + sev.slice(1);
+                    var span = document.createElement("span");
+                    span.className = "cve-severity-counter " + sev;
+                    span.textContent = label + ": " + n;
+                    counterRow.appendChild(span);
+                });
+                container.appendChild(counterRow);
                 var summary = document.createElement("div");
                 summary.className = "cve-list-summary";
                 summary.setAttribute("aria-live", "polite");
-                summary.textContent = "Showing " + cveList.length + " of " + totalCves + " CVEs";
+                summary.textContent = "Highest severity CVEs (showing " + Math.min(cveList.length, 20) + " of " + totalCves + ")";
                 container.appendChild(summary);
                 var wrap = document.createElement("div");
                 wrap.className = "cve-buttons";
-                cveList.forEach(function(cve) {
+                var displayList = cveList.slice(0, 20);
+                displayList.forEach(function(cve) {
                     var btn = document.createElement("button");
                     btn.type = "button";
                     btn.className = "cve-btn " + severityClass(cve.impact);
@@ -684,11 +733,12 @@
                 overlaySectionLoading = { description: true, explain: true, devices: true };
                 overlaySectionErrors = { description: null, explain: null, devices: null };
 
+                currentOverlaySectionId = null;
                 openModal(cve.id, { showFooter: false, showRemediate: false, content: "" });
                 var contentEl = document.getElementById("modal-content");
                 var titleEl = document.getElementById("modal-title");
                 var severityEl = document.getElementById("modal-severity");
-                if (titleEl) titleEl.textContent = cve.id;
+                if (titleEl) titleEl.textContent = cve.id + " (loading…)";
                 if (severityEl) {
                     var norm = normalizeCveDetail(minimalDetail, cve._raw);
                     var attrs = norm.attrs;
@@ -736,6 +786,7 @@
 
                     function renderWithDevices(devices) {
                         overlaySectionLoading.devices = false;
+                        remediationSelectedUuids[cve.id] = new Set(devices.map(function(d) { return d.uuid; }));
                         descPromise.then(function(descResult) {
                             if (currentOverlayCveId !== cve.id) return;
                             overlaySectionLoading.description = false;
@@ -918,14 +969,27 @@
                         if (devices.length === 0) { var li = el("li"); li.textContent = "No affected systems."; ul.appendChild(li); }
                         else devices.forEach(function(d) {
                             var li = el("li");
+                            li.style.display = "flex";
+                            li.style.alignItems = "center";
+                            li.style.gap = "8px";
+                            var cb = document.createElement("input");
+                            cb.type = "checkbox";
+                            cb.checked = remediationSelectedUuids[cveId] ? remediationSelectedUuids[cveId].has(d.uuid) : true;
+                            cb.setAttribute("aria-label", "Select " + (d.name || d.uuid) + " for remediation");
+                            cb.addEventListener("change", function() {
+                                if (!remediationSelectedUuids[cveId]) remediationSelectedUuids[cveId] = new Set();
+                                if (cb.checked) remediationSelectedUuids[cveId].add(d.uuid);
+                                else remediationSelectedUuids[cveId].delete(d.uuid);
+                            });
+                            li.appendChild(cb);
                             if (d.name && d.name !== d.uuid) {
-                                li.textContent = d.name + " ";
+                                li.appendChild(document.createTextNode(d.name + " "));
                                 var span = el("span");
                                 span.style.color = "var(--color-text-secondary)";
                                 span.style.fontSize = "12px";
                                 span.textContent = "(" + d.uuid + ")";
                                 li.appendChild(span);
-                            } else li.textContent = d.uuid;
+                            } else li.appendChild(document.createTextNode(d.uuid));
                             ul.appendChild(li);
                         });
                         s.appendChild(ul);
@@ -972,6 +1036,25 @@
                 }
                 if (sectionId === "remediate") {
                     sect("Remediate", function(s) {
+                        var selectedCount = getSelectedRemediationUuids(cveId).length;
+                        var hasDevices = devices.length > 0;
+                        var showNoSelectionWarning = hasDevices && selectedCount === 0;
+                        var countLabel = el("div", "remediate-selected-count");
+                        countLabel.style.marginBottom = "8px";
+                        countLabel.style.fontWeight = "500";
+                        countLabel.textContent = selectedCount + " device" + (selectedCount !== 1 ? "s" : "") + " selected for remediation";
+                        s.appendChild(countLabel);
+                        if (showNoSelectionWarning) {
+                            var warn = el("div", "remediate-no-selection-warning");
+                            warn.style.padding = "12px";
+                            warn.style.background = "var(--color-warning-bg, #fff3cd)";
+                            warn.style.border = "1px solid var(--color-warning-border, #ffc107)";
+                            warn.style.borderRadius = "6px";
+                            warn.style.marginBottom = "12px";
+                            warn.style.color = "var(--color-warning-text, #856404)";
+                            warn.textContent = "No devices selected. Go to Affected devices and select the systems you want to remediate.";
+                            s.appendChild(warn);
+                        }
                         var para = el("p");
                         para.style.marginBottom = "12px";
                         para.textContent = "Create a remediation playbook and download the YAML.";
@@ -998,6 +1081,10 @@
                         downloadStatusEl.style.fontSize = "13px";
                         downloadStatusEl.setAttribute("aria-live", "polite");
                         s.appendChild(downloadStatusEl);
+                        var msgEl = document.createElement("div");
+                        msgEl.id = "remediate-section-message";
+                        msgEl.className = "remediate-section-message";
+                        s.appendChild(msgEl);
                     });
                     wireRemediateButtons(cveId);
                     return;
@@ -1154,10 +1241,15 @@
                         }, 0);
                     });
                     }
-                    var uuids = currentOverlayUuids.length ? currentOverlayUuids : (scopeSystemUuid ? [scopeSystemUuid] : []);
+                    var uuids = getSelectedRemediationUuids(cveId);
                     log("wireRemediateButtons: Remediate clicked cveId=" + cveId + " uuids.length=" + (uuids && uuids.length) + " scopeDeviceParam=" + (scopeDeviceParam || "(none)"));
                     if (uuids.length > 0) {
                         runCreatePlaybook(uuids);
+                        return;
+                    }
+                    var sel = remediationSelectedUuids[cveId];
+                    if (currentOverlayDevices.length > 0 && sel && sel.size === 0) {
+                        showRemediateMessage("No devices selected. Go to Affected devices and select the systems you want to remediate.", true);
                         return;
                     }
                     if (scopeDeviceParam) {
@@ -1189,6 +1281,7 @@
                 }
             }
             function showSection(sectionId) {
+                currentOverlaySectionId = sectionId;
                 var box = document.querySelector(".modal-box");
                 if (box) box.classList.add("modal-box--full");
                 var contentEl = document.getElementById("modal-content");
@@ -1214,6 +1307,7 @@
                 buildSectionContent(body, sectionId, currentOverlayCveDetail, currentOverlayDevices, currentOverlayCveId);
             }
             function showSectionList() {
+                currentOverlaySectionId = null;
                 var box = document.querySelector(".modal-box");
                 if (box) box.classList.remove("modal-box--full");
                 var backWrap = document.getElementById("modal-back-wrap");
@@ -1242,7 +1336,11 @@
 
                 currentOverlayCveDetail = cveDetail;
                 currentOverlayDevices = devices;
-                buildCveSectionList(contentEl, cveDetail, devices, cveId, listCve);
+                if (currentOverlaySectionId) {
+                    showSection(currentOverlaySectionId);
+                } else {
+                    buildCveSectionList(contentEl, cveDetail, devices, cveId, listCve);
+                }
 
                 if (explainPromise) {
                     explainPromise.then(function(explResult) {
