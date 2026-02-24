@@ -764,12 +764,15 @@
                     if (sysResult && typeof sysResult === "object" && sysResult.error != null) {
                         overlaySectionErrors.devices = typeof sysResult.error === "string" ? sysResult.error : (sysResult.hint || JSON.stringify(sysResult.error));
                         overlaySectionLoading.devices = false;
+                        var minimalDetail = (cve._raw && typeof cve._raw === "object") ? cve._raw : { attributes: { impact: cve.impact || "unknown", cvss3_score: cve.cvss, cvss2_score: cve.cvss } };
+                        renderOverlayContent([], cve.id, Promise.resolve(null), minimalDetail, cve);
                         descPromise.then(function(descResult) {
                             if (currentOverlayCveId !== cve.id) return;
                             overlaySectionLoading.description = false;
                             if (descResult && typeof descResult === "object" && descResult.error != null)
                                 overlaySectionErrors.description = typeof descResult.error === "string" ? descResult.error : (descResult.hint || "");
-                            renderOverlayContent([], cve.id, Promise.resolve(null), descResult, cve);
+                            else overlaySectionErrors.description = null;
+                            renderOverlayContent([], cve.id, Promise.resolve(null), descResult || minimalDetail, cve);
                         });
                         return;
                     }
@@ -787,12 +790,15 @@
                     function renderWithDevices(devices) {
                         overlaySectionLoading.devices = false;
                         remediationSelectedUuids[cve.id] = new Set(devices.map(function(d) { return d.uuid; }));
+                        var minimalDetail = (cve._raw && typeof cve._raw === "object") ? cve._raw : { attributes: { impact: cve.impact || "unknown", cvss3_score: cve.cvss, cvss2_score: cve.cvss } };
+                        renderOverlayContent(devices, cve.id, explainPromise, minimalDetail, cve);
                         descPromise.then(function(descResult) {
                             if (currentOverlayCveId !== cve.id) return;
                             overlaySectionLoading.description = false;
                             if (descResult && typeof descResult === "object" && descResult.error != null)
                                 overlaySectionErrors.description = typeof descResult.error === "string" ? descResult.error : (descResult.hint || "");
-                            renderOverlayContent(devices, cve.id, explainPromise, descResult, cve);
+                            else overlaySectionErrors.description = null;
+                            renderOverlayContent(devices, cve.id, explainPromise, descResult || minimalDetail, cve);
                         });
                     }
 
@@ -819,12 +825,15 @@
                     if (currentOverlayCveId !== cve.id) return;
                     overlaySectionErrors.devices = (err && err.message) ? err.message : String(err || "Failed to load affected systems.");
                     overlaySectionLoading.devices = false;
+                    var minimalDetail = (cve._raw && typeof cve._raw === "object") ? cve._raw : { attributes: { impact: cve.impact || "unknown", cvss3_score: cve.cvss, cvss2_score: cve.cvss } };
+                    renderOverlayContent([], cve.id, Promise.resolve(null), minimalDetail, cve);
                     descPromise.then(function(descResult) {
                         if (currentOverlayCveId !== cve.id) return;
                         overlaySectionLoading.description = false;
                         if (descResult && typeof descResult === "object" && descResult.error != null)
                             overlaySectionErrors.description = typeof descResult.error === "string" ? descResult.error : (descResult.hint || "");
-                        renderOverlayContent([], cve.id, Promise.resolve(null), descResult, cve);
+                        else overlaySectionErrors.description = null;
+                        renderOverlayContent([], cve.id, Promise.resolve(null), descResult || minimalDetail, cve);
                     });
                 });
             }

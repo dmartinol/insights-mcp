@@ -1394,12 +1394,15 @@
                     if (sysResult && typeof sysResult === "object" && sysResult.error != null) {
                         overlaySectionErrors.devices = typeof sysResult.error === "string" ? sysResult.error : (sysResult.hint || "");
                         overlaySectionLoading.devices = false;
+                        var minimalDetail = cve._raw || { attributes: { impact: cve.impact, cvss3_score: cve.cvss, cvss2_score: cve.cvss } };
+                        renderOverlayContent([], cve.id, Promise.resolve(null), minimalDetail, cve);
                         descPromise.then(function(descResult) {
                             if (currentOverlayCveId !== cve.id) return;
                             overlaySectionLoading.description = false;
                             if (descResult && typeof descResult === "object" && descResult.error) overlaySectionErrors.description = typeof descResult.error === "string" ? descResult.error : "";
+                            else overlaySectionErrors.description = null;
                             currentOverlayCveDetail = descResult && descResult.data ? descResult : currentOverlayCveDetail;
-                            renderOverlayContent([], cve.id, Promise.resolve(null), descResult, cve);
+                            renderOverlayContent([], cve.id, Promise.resolve(null), descResult || minimalDetail, cve);
                         });
                         return;
                     }
@@ -1412,12 +1415,15 @@
 
                     function renderWithDevices(devices) {
                         overlaySectionLoading.devices = false;
+                        var minimalDetail = cve._raw || { attributes: { impact: cve.impact, cvss3_score: cve.cvss, cvss2_score: cve.cvss } };
+                        renderOverlayContent(devices, cve.id, explainPromise, minimalDetail, cve);
                         descPromise.then(function(descResult) {
                             if (currentOverlayCveId !== cve.id) return;
                             overlaySectionLoading.description = false;
                             if (descResult && typeof descResult === "object" && descResult.error) overlaySectionErrors.description = typeof descResult.error === "string" ? descResult.error : "";
+                            else overlaySectionErrors.description = null;
                             currentOverlayCveDetail = descResult && descResult.data ? descResult : currentOverlayCveDetail;
-                            renderOverlayContent(devices, cve.id, explainPromise, descResult, cve);
+                            renderOverlayContent(devices, cve.id, explainPromise, descResult || minimalDetail, cve);
                         });
                     }
 
@@ -1433,11 +1439,13 @@
                 }).catch(function() {
                     if (currentOverlayCveId !== cve.id) return;
                     overlaySectionLoading.devices = false;
+                    var minimalDetail = cve._raw || { attributes: { impact: cve.impact, cvss3_score: cve.cvss, cvss2_score: cve.cvss } };
+                    renderOverlayContent([], cve.id, Promise.resolve(null), minimalDetail, cve);
                     descPromise.then(function(descResult) {
                         if (currentOverlayCveId !== cve.id) return;
                         overlaySectionLoading.description = false;
                         currentOverlayCveDetail = descResult && descResult.data ? descResult : currentOverlayCveDetail;
-                        renderOverlayContent([], cve.id, Promise.resolve(null), descResult, cve);
+                        renderOverlayContent([], cve.id, Promise.resolve(null), descResult || minimalDetail, cve);
                     });
                 });
             }
