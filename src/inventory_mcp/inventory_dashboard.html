@@ -13,182 +13,82 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Inventory Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/@patternfly/patternfly@5.4.2/patternfly.min.css?v=5.4.2">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        :root {
-            --font-sans: system-ui, -apple-system, sans-serif;
-            --color-text-primary: #333;
-            --color-text-secondary: #666;
-            --color-bg: #fff;
-            --color-bg-secondary: #f5f5f5;
-            --color-border: #ddd;
-            --color-primary: #0066cc;
-            --color-success: #28a745;
-            --color-warning: #ffc107;
-            --color-danger: #dc3545;
-            --severity-critical: #dc3545;
-            --severity-high: #fd7e14;
-            --severity-medium: #ffc107;
-            --severity-low: #6c757d;
-        }
-        [data-theme="dark"] {
-            --color-text-primary: #eee;
-            --color-text-secondary: #999;
-            --color-bg: #1a1a1a;
-            --color-bg-secondary: #252525;
-            --color-border: #444;
-            --color-primary: #4da6ff;
-        }
-        @media (prefers-color-scheme: dark) {
-            :root:not([data-theme]) {
-                --color-text-primary: #eee;
-                --color-text-secondary: #999;
-                --color-bg: #1a1a1a;
-                --color-bg-secondary: #252525;
-                --color-border: #444;
-                --color-primary: #4da6ff;
-            }
-        }
-        body { font-family: var(--font-sans); background: var(--color-bg); color: var(--color-text-primary); padding: 16px; min-height: 100vh; }
-        .container { max-width: 900px; margin: 0 auto; }
-        .dashboard-card {
-            background: var(--color-bg-secondary);
-            border: 1px solid var(--color-border);
-            border-radius: 12px;
-            margin-bottom: 24px;
-            overflow: hidden;
-        }
-        .top-bar {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 14px 16px;
-            border-bottom: 1px solid var(--color-border);
-        }
-        .top-bar-title { font-size: 18px; font-weight: 700; }
-        .top-bar-scope {
-            font-size: 14px;
-            color: var(--color-text-secondary);
-            padding: 4px 10px;
-            background: var(--color-bg);
-            border-radius: 6px;
-            border: 1px solid var(--color-border);
-        }
-        .dashboard-card-body { padding: 16px; }
-        .section-head-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-        .section-head-row h3 { margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-secondary); }
-        .btn { padding: 8px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; background: var(--color-primary); color: white; }
-        .btn:hover { opacity: 0.9; }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-secondary { background: var(--color-border); color: var(--color-text-primary); }
-        .empty-state { padding: 16px; color: var(--color-text-secondary); font-style: italic; }
-        .error-message { padding: 12px; background: #fee; border: 1px solid var(--color-danger); border-radius: 8px; color: var(--color-danger); font-size: 14px; margin-top: 8px; }
-        .loading { color: var(--color-text-secondary); }
-        .page-message { padding: 10px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; display: none; }
+        /* PatternFly-first: minimal overrides; use PF layout/component classes */
+        body { padding: var(--pf-v5-global--spacer--md); min-height: 100vh; }
+        .inventory-dashboard { width: 100%; max-width: 100%; min-height: 90vh; min-height: 90dvh; }
+        #scope-label { background: var(--pf-v5-global--BackgroundColor--200); padding: 6px 12px; border-radius: 6px; font-size: 14px; border: 1px solid var(--pf-v5-global--BorderColor--200); }
+        /* Refresh buttons - icon-only (match remediation) */
+        #btn-refresh-carousel, #btn-refresh-cve-list, .severity-refresh-btn { border: none !important; box-shadow: none !important; }
+        .page-message { margin-bottom: 12px; display: none; }
         .page-message.visible { display: block; }
-        .page-message.warning { background: #fff3cd; border: 1px solid var(--color-warning); color: #856404; }
-        .page-message.error { background: #f8d7da; border: 1px solid var(--color-danger); color: #721c24; }
-        .playbook-download-banner {
-            display: none;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 12px 16px;
-            margin-bottom: 12px;
-            background: #e7f3ff;
-            border: 1px solid var(--color-primary);
-            border-radius: 8px;
-            font-size: 14px;
-        }
+        .playbook-download-banner { display: none; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
         .playbook-download-banner.visible { display: flex; flex-wrap: wrap; }
-        .playbook-download-banner .banner-text { color: var(--color-text-primary); }
-        .playbook-download-banner .btn { flex-shrink: 0; }
 
-        /* Carousel */
-        .carousel-wrapper { position: relative; min-height: 320px; }
-        .carousel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border); }
-        .carousel-header-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-        .carousel-title { font-size: 16px; font-weight: 600; }
-        .carousel-counter { font-size: 14px; color: var(--color-text-secondary); }
-        .host-card { display: none; animation: fadeIn 0.3s ease-in; }
-        .host-card.active { display: block; }
+        /* Carousel layout */
+        .carousel-wrapper { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .carousel-header { margin-bottom: var(--pf-v5-global--spacer--md); padding-bottom: var(--pf-v5-global--spacer--sm); border-bottom: 1px solid var(--pf-v5-global--BorderColor--100); flex-wrap: nowrap; }
+        #host-container { margin-bottom: var(--pf-v5-global--spacer--md); }
+        /* Carousel: one host at a time. PatternFly has no carousel component; this show/hide + prev/next pattern is standard. */
+        #host-container .host-card { display: none !important; animation: fadeIn 0.3s ease-in; }
+        #host-container .host-card.active { display: block !important; }
         @keyframes fadeIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
-        .host-name { font-size: 20px; font-weight: 600; margin-bottom: 8px; color: var(--color-primary); }
-        .host-id { font-size: 12px; color: var(--color-text-secondary); font-family: monospace; margin-bottom: 12px; }
-        .host-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        /* Host detail grid - PatternFly */
+        .host-details { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--pf-v5-global--spacer--md); margin-bottom: var(--pf-v5-global--spacer--md); }
         .detail-item { display: flex; flex-direction: column; }
-        .detail-label { font-size: 11px; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
-        .detail-value { font-size: 13px; font-weight: 500; }
+        .detail-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; color: var(--pf-v5-global--Color--200); }
+        .detail-value { font-size: 13px; font-weight: 500; word-break: break-word; overflow-wrap: break-word; }
         .staleness-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
-        .staleness-fresh { background: var(--color-success); color: white; }
-        .staleness-stale { background: var(--color-danger); color: white; }
-        .staleness-stale_warning { background: var(--color-warning); color: #333; }
-        .staleness-unknown { background: var(--severity-low); color: white; }
-        .provider-badge { display: inline-block; padding: 4px 8px; background: var(--color-border); border-radius: 4px; font-size: 11px; text-transform: uppercase; font-weight: 500; }
+        .staleness-fresh { background: var(--pf-v5-global--success-color--100); color: #fff; }
+        .staleness-stale { background: var(--pf-v5-global--danger-color--100); color: #fff; }
+        .staleness-stale_warning { background: var(--pf-v5-global--warning-color--100); color: #151515; }
+        .staleness-unknown { background: var(--pf-v5-global--palette--black-600); color: #fff; }
+        .provider-badge { display: inline-block; padding: 4px 8px; background: var(--pf-v5-global--BackgroundColor--200); border-radius: 4px; font-size: 11px; text-transform: uppercase; font-weight: 500; }
 
-        /* Severity buttons (count per severity) */
+        /* Severity buttons - match remediation (pf-v5-c-button + severity colors) */
         .severity-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
         .severity-buttons-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; width: 100%; }
-        .severity-btn {
-            padding: 10px 16px;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 13px;
-            cursor: pointer;
-            color: #fff;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-        }
-        .severity-btn:hover { opacity: 0.92; transform: translateY(-1px); }
-        .severity-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-        .severity-btn.critical { background: var(--severity-critical); }
-        .severity-btn.important { background: var(--severity-high); }
-        .severity-btn.moderate { background: var(--severity-medium); color: #333; }
-        .severity-btn.low { background: var(--severity-low); }
+        .severity-btn { padding: 10px 16px; border: none; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; color: #fff; }
+        .severity-btn:hover { opacity: 0.92; }
+        .severity-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .severity-btn.critical { background: var(--pf-v5-global--danger-color--100) !important; }
+        .severity-btn.important { background: var(--pf-v5-global--palette--orange-400) !important; }
+        .severity-btn.moderate { background: var(--pf-v5-global--warning-color--100) !important; color: #151515 !important; }
+        .severity-btn.low { background: var(--pf-v5-global--palette--black-600) !important; }
+        .severity-label { padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; display: inline-block; }
+        .severity-label-critical { background: var(--pf-v5-global--danger-color--100); color: #fff; }
+        .severity-label-important { background: var(--pf-v5-global--palette--orange-400); color: #fff; }
+        .severity-label-moderate { background: var(--pf-v5-global--warning-color--100); color: #151515; }
+        .severity-label-low { background: var(--pf-v5-global--palette--black-600); color: #fff; }
 
-        .carousel-controls { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--color-border); }
-        .nav-button { background: var(--color-primary); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; }
-        .nav-button:hover:not(:disabled) { opacity: 0.9; }
-        .nav-button:disabled { background: var(--color-border); color: var(--color-text-secondary); cursor: not-allowed; }
-        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        .carousel-controls { margin-top: var(--pf-v5-global--spacer--lg); padding-top: var(--pf-v5-global--spacer--md); border-top: 1px solid var(--pf-v5-global--BorderColor--100); }
 
         /* CVE list (when severity clicked) */
-        .cve-list-view { display: none; }
-        .cve-list-view.visible { display: block; }
-        .cve-list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border); }
-        .cve-list-title { font-size: 18px; font-weight: 700; }
-        .back-button { padding: 8px 16px; background: var(--color-border); border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
-        .back-button:hover { background: var(--color-text-secondary); color: white; }
-        .cve-section-list { padding: 16px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: 520px; }
-        .cve-section-btn {
-            display: block;
-            width: 100%;
-            padding: 14px 18px;
-            text-align: left;
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--color-text-primary);
-            background: var(--color-bg-secondary);
-            border: 1px solid var(--color-border);
-            border-radius: 8px;
-            cursor: pointer;
-            text-decoration: none;
-        }
-        .cve-section-btn:hover { background: var(--color-border); }
-        .severity-badge { padding: 6px 14px; border-radius: 16px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
-        .severity-badge.critical { background: var(--severity-critical); color: white; }
-        .severity-badge.important { background: var(--severity-high); color: white; }
-        .severity-badge.moderate { background: var(--severity-medium); color: #333; }
-        .severity-badge.low { background: var(--severity-low); color: white; }
-        .cvss-score { font-size: 20px; font-weight: 700; color: var(--color-text-secondary); }
+        .cve-list-view { display: none; flex: 1; min-height: 0; flex-direction: column; }
+        .cve-list-view.visible { display: flex; }
+        .cve-list-header { margin-bottom: var(--pf-v5-global--spacer--md); padding-bottom: var(--pf-v5-global--spacer--sm); border-bottom: 1px solid var(--pf-v5-global--BorderColor--100); flex-wrap: nowrap; }
+        .cve-section-list { padding: var(--pf-v5-global--spacer--md); display: flex; flex-direction: column; gap: var(--pf-v5-global--spacer--sm); flex: 1; min-height: 0; overflow-y: auto; }
+        /* CVE buttons - match remediation dashboard (high=Important, medium=Moderate) */
+        .cve-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+        .cve-btn { font-family: var(--pf-v5-global--FontFamily--monospace); font-size: 13px; }
+        .cve-btn.critical { background: var(--pf-v5-global--danger-color--100); color: #fff; }
+        .cve-btn.high { background: var(--pf-v5-global--palette--orange-400); color: #fff; }
+        .cve-btn.medium { background: var(--pf-v5-global--warning-color--100); color: #151515; }
+        .cve-btn.low { background: var(--pf-v5-global--palette--black-600); color: #fff; }
+        .severity-badge { padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
+        .severity-badge.critical { background: var(--pf-v5-global--danger-color--100); color: #fff; }
+        .severity-badge.important { background: var(--pf-v5-global--palette--orange-400); color: #fff; }
+        .severity-badge.moderate { background: var(--pf-v5-global--warning-color--100); color: #151515; }
+        .severity-badge.low { background: var(--pf-v5-global--palette--black-600); color: #fff; }
+        .cvss-score { font-size: 20px; font-weight: 700; color: var(--pf-v5-global--Color--200); }
 
-        /* Modal (reuse from remediation dashboard) */
+        /* Modal - PatternFly pf-v5-c-modal-box (match remediation dashboard) */
         .modal-backdrop {
             display: none;
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            min-height: 100vh;
-            min-height: 100dvh;
+            min-height: 100vh; min-height: 100dvh;
             background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
             align-items: center;
@@ -199,9 +99,7 @@
         }
         .modal-backdrop.visible { display: flex; }
         .modal-box {
-            background: var(--color-bg);
-            border: 1px solid var(--color-border);
-            border-radius: 12px;
+            background: var(--pf-v5-global--BackgroundColor--100);
             max-width: 92vw;
             width: 800px;
             height: min(92vh, 92dvh);
@@ -210,83 +108,99 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            box-shadow: var(--pf-v5-global--BoxShadow--xl);
+            flex-shrink: 0;
+            border-radius: var(--pf-v5-global--BorderRadius--sm);
+            border: 1px solid var(--pf-v5-global--BorderColor--100);
         }
         .modal-box.modal-box--full { width: 95vw; max-width: 95vw; height: min(98vh, 98dvh); max-height: min(98vh, 98dvh); }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--color-border); flex-shrink: 0; gap: 12px; flex-wrap: wrap; }
-        .modal-header-left { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-        .modal-title { font-size: 18px; font-weight: 700; margin: 0; }
-        .modal-close { font-size: 24px; line-height: 1; cursor: pointer; background: none; border: none; color: var(--color-text-secondary); padding: 0 4px; }
-        .modal-close:hover { color: var(--color-text-primary); }
-        .modal-content { display: flex; flex-direction: column; padding: 0; overflow-y: auto; overflow-x: hidden; flex: 1; min-height: 0; font-size: 14px; }
+        .modal-content { display: flex; flex-direction: column; padding: 0; overflow: hidden; flex: 1; min-height: 0; font-size: 14px; }
+        .modal-box .pf-v5-c-modal-box__header { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center; gap: 12px; }
+        .modal-box .pf-v5-c-modal-box__header-main { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; flex-direction: row; }
+        .modal-box .pf-v5-c-modal-box__header-main .pf-v5-c-modal-box__title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 auto; }
+        .modal-box .pf-v5-c-modal-box__header-actions { flex-shrink: 0; display: inline-flex !important; flex-wrap: nowrap; align-items: center; gap: 4px; }
         .cve-section-full { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
-        .cve-detail-section { background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-        .cve-detail-section .section-title { font-size: 14px; font-weight: 700; color: var(--color-text-primary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        /* CVE overlay section nav - match remediation: full-width buttons, column layout */
+        .cve-overlay-section-nav { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+        .cve-overlay-section-nav .pf-v5-c-button { width: 100%; text-align: left; justify-content: flex-start; }
+        /* CVE detail sections - match remediation (pf-v5-c-card, white background) */
+        .cve-detail-section { margin-bottom: 16px; }
+        .cve-detail-section .section-title { font-size: 14px; font-weight: 700; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
         .metadata-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
         .metadata-item { display: flex; flex-direction: column; }
-        .metadata-label { font-size: 11px; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+        .metadata-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; color: var(--pf-v5-global--Color--200); }
         .metadata-value { font-size: 13px; font-weight: 500; }
-        .advisories-list { display: flex; flex-direction: column; gap: 6px; }
-        .advisory-link { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-primary); text-decoration: none; font-weight: 600; font-size: 13px; max-width: fit-content; }
-        .external-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
-        .external-link { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; background: var(--color-primary); color: white; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 13px; }
-        .external-link:hover { opacity: 0.92; }
-        .external-link-secondary { background: var(--color-bg-secondary); color: var(--color-text-primary); border: 2px solid var(--color-border); }
-        .modal-back-wrap { display: inline-flex; align-items: center; margin-right: 8px; }
-        .modal-back-wrap .btn { padding: 4px 10px; font-size: 12px; white-space: nowrap; }
-        .modal-footer { padding: 12px 16px; border-top: 1px solid var(--color-border); flex-shrink: 0; display: flex; gap: 8px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        /* Advisories: vertical list + PatternFly link style (pf-m-link) per PF docs */
+        .advisories-list { display: flex; flex-direction: column; gap: var(--pf-v5-global--spacer--sm); list-style: none; padding: 0; margin: 0; }
+        .advisories-list li { margin: 0; }
+        .external-links { margin-top: 8px; }
+        .modal-back-wrap { display: inline-flex; align-items: center; margin-right: 8px; flex-shrink: 0; }
+        .modal-back-wrap .pf-v5-c-button { white-space: nowrap; }
         .remediate-section-message { margin-top: 12px; padding: 10px 12px; border-radius: 6px; font-size: 14px; display: none; }
         .remediate-section-message.visible { display: block; }
-        .remediate-section-message.error { background: #f8d7da; border: 1px solid var(--color-danger); color: #721c24; }
-        .remediate-section-message.busy { background: var(--color-bg-secondary); border: 1px solid var(--color-border); color: var(--color-text-secondary); }
-        .remediate-yaml-selectable { width: 100%; min-height: 120px; max-height: 320px; margin-top: 8px; padding: 10px; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.4; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-bg); color: var(--color-text-primary); resize: vertical; user-select: text; white-space: pre-wrap; }
-        ul.flat { list-style: none; }
-        ul.flat li { padding: 6px 0; border-bottom: 1px solid var(--color-border); font-size: 13px; }
+        .remediate-section-message.error { background: #f8d7da; border: 1px solid var(--pf-v5-global--danger-color--100); color: #721c24; }
+        .remediate-section-message.busy { background: var(--pf-v5-global--BackgroundColor--200); border: 1px solid var(--pf-v5-global--BorderColor--100); color: var(--pf-v5-global--Color--200); }
+        .remediate-yaml-selectable { width: 100%; min-height: 120px; max-height: 320px; margin-top: 8px; padding: 10px; font-family: var(--pf-v5-global--FontFamily--monospace); font-size: 12px; line-height: 1.4; resize: vertical; user-select: text; white-space: pre-wrap; }
+        ul.flat { list-style: none; padding: 0; margin: 0; }
+        ul.flat li { padding: 6px 0; border-bottom: 1px solid var(--pf-v5-global--BorderColor--100); font-size: 13px; }
         ul.flat li:last-child { border-bottom: none; }
         #modal-severity { display: inline-flex; align-items: center; gap: 8px; }
-        #modal-severity .severity-badge { padding: 4px 10px; font-size: 11px; }
-        #modal-severity .cvss-score { font-size: 16px; }
+        /* Card: expand to use vertical space (match remediation - sufficient height). Scope to main dashboard card only so host-card carousel items are not affected. */
+        .inventory-dashboard > .pf-v5-c-card { min-height: 85vh; min-height: 85dvh; display: flex; flex-direction: column; }
+        .inventory-dashboard > .pf-v5-c-card .pf-v5-c-card__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        /* Card header: prevent wrapping */
+        .pf-v5-c-card__header { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--pf-v5-global--spacer--sm, 12px); }
+        .pf-v5-c-card__header .pf-v5-c-card__title { flex: 1 1 auto; min-width: 0; }
+        .pf-v5-c-card__actions { flex-shrink: 0; }
+        #modal-refresh-btn { border: none !important; box-shadow: none !important; }
+        .overlay-section ul.flat { list-style: none; padding: 0; margin: 0; }
+        .overlay-section ul.flat li { padding: 6px 0; border-bottom: 1px solid var(--pf-v5-global--BorderColor--100); font-size: 13px; }
+        .overlay-section ul.flat li:last-child { border-bottom: none; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div id="page-message" class="page-message" role="alert" aria-live="polite"></div>
-        <div id="playbook-download-banner" class="playbook-download-banner" role="status" aria-live="polite">
-            <span class="banner-text">Playbook ready. Download before closing or refreshing.</span>
-            <button type="button" class="btn" id="playbook-download-banner-btn">Download YAML</button>
+    <div class="inventory-dashboard pf-v5-l-stack pf-m-gutter">
+        <div id="page-message" class="pf-v5-l-stack__item page-message pf-v5-c-alert pf-m-warning" role="alert" aria-live="polite"></div>
+        <div id="playbook-download-banner" class="pf-v5-l-stack__item playbook-download-banner pf-v5-c-banner pf-m-info" role="status" aria-live="polite">
+            <span class="banner-text pf-v5-c-banner__text">Playbook ready. Download before closing or refreshing.</span>
+            <button type="button" class="pf-v5-c-button pf-m-primary" id="playbook-download-banner-btn">Download YAML</button>
         </div>
-        <div class="dashboard-card">
-            <div class="top-bar" id="top-bar">
-                <span class="top-bar-title">Inventory Dashboard</span>
-                <span class="top-bar-scope" id="scope-label">…</span>
+        <div class="pf-v5-l-stack__item pf-v5-c-card">
+            <div class="pf-v5-c-card__header" id="top-bar">
+                <div class="pf-v5-c-card__title">
+                    <h2 class="pf-v5-c-title pf-m-2xl">Inventory Dashboard</h2>
+                </div>
+                <div class="pf-v5-c-card__actions">
+                    <span class="pf-v5-c-label pf-m-outline" id="scope-label">…</span>
+                </div>
             </div>
-            <div class="dashboard-card-body">
+            <div class="pf-v5-c-card__body">
                 <div id="carousel-view" class="carousel-wrapper">
-                    <div class="carousel-header">
-                        <div class="carousel-title">Hosts</div>
-                        <div class="carousel-header-right">
-                            <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-carousel" aria-label="Refresh hosts" title="Refresh hosts"><span aria-hidden="true">&#8635;</span> Refresh</button>
-                            <span class="carousel-counter" id="counter">Loading...</span>
+                    <div class="carousel-header pf-v5-l-flex pf-v5-m-justify-content-space-between pf-v5-m-align-items-center">
+                        <h3 class="pf-v5-c-title pf-m-md" style="margin: 0; text-transform: uppercase; letter-spacing: 0.5px; color: var(--pf-v5-global--Color--200);">Hosts</h3>
+                        <div class="pf-v5-l-flex pf-v5-m-gap-md pf-v5-m-align-items-center pf-v5-m-flex-shrink-0">
+                            <button type="button" class="pf-v5-c-button pf-m-plain pf-m-icon" id="btn-refresh-carousel" aria-label="Refresh hosts" title="Refresh hosts">&#8635;</button>
+                            <span class="pf-v5-c-badge pf-m-read" id="counter">Loading...</span>
                         </div>
                     </div>
                     <div id="host-container">
                         <div class="loading">Loading hosts...</div>
                     </div>
-                    <div class="carousel-controls">
-                        <button class="nav-button" id="prev-btn" onclick="previousHost()" disabled>← Previous</button>
-                        <button class="nav-button" id="next-btn" onclick="nextHost()" disabled>Next →</button>
+                    <div class="carousel-controls pf-v5-l-flex pf-v5-m-justify-content-space-between pf-v5-m-align-items-center">
+                        <button type="button" class="pf-v5-c-button pf-m-secondary" id="prev-btn" onclick="previousHost()" disabled>← Previous</button>
+                        <button type="button" class="pf-v5-c-button pf-m-primary" id="next-btn" onclick="nextHost()" disabled>Next →</button>
                     </div>
                 </div>
 
                 <div id="cve-list-view" class="cve-list-view">
-                    <div class="cve-list-header">
-                        <div>
-                            <h2 class="cve-list-title" id="cve-list-title">CVEs</h2>
-                            <div class="detail-value" id="cve-list-subtitle" style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px;"></div>
+                    <div class="cve-list-header pf-v5-l-flex pf-v5-m-justify-content-space-between pf-v5-m-align-items-center">
+                        <div class="pf-v5-l-flex pf-v5-m-column pf-v5-m-gap-sm">
+                            <h2 class="pf-v5-c-title pf-m-2xl" id="cve-list-title">CVEs</h2>
+                            <div class="pf-v5-c-content pf-v5-u-font-size-sm pf-v5-u-color-200" id="cve-list-subtitle"></div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-cve-list" aria-label="Refresh CVE list" title="Refresh CVE list"><span aria-hidden="true">&#8635;</span> Refresh</button>
-                            <button id="back-to-carousel" class="back-button">← Back to Hosts</button>
+                        <div class="pf-v5-l-flex pf-v5-m-gap-md pf-v5-m-align-items-center pf-v5-m-flex-shrink-0">
+                            <button type="button" class="pf-v5-c-button pf-m-plain pf-m-icon" id="btn-refresh-cve-list" aria-label="Refresh CVE list" title="Refresh CVE list">&#8635;</button>
+                            <button type="button" id="back-to-carousel" class="pf-v5-c-button pf-m-secondary">← Back to Hosts</button>
                         </div>
                     </div>
                     <div id="cve-list-container" class="cve-section-list"></div>
@@ -296,17 +210,22 @@
     </div>
 
     <div id="modal-backdrop" class="modal-backdrop" aria-hidden="true">
-        <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-            <div class="modal-header">
-                <div class="modal-header-left">
+        <div class="modal-box pf-v5-c-modal-box pf-m-lg" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <div class="pf-v5-c-modal-box__header">
+                <div class="pf-v5-c-modal-box__header-main">
                     <span id="modal-back-wrap" class="modal-back-wrap" style="display: none;"></span>
-                    <h2 id="modal-title" class="modal-title"></h2>
-                    <div id="modal-severity" class="cve-overlay-severity" style="display: none;"></div>
+                    <h2 id="modal-title" class="pf-v5-c-modal-box__title pf-v5-c-title pf-m-2xl"></h2>
+                    <div id="modal-severity" class="pf-v5-l-flex pf-v5-m-gap-md pf-v5-m-align-items-center" style="display: none;"></div>
                 </div>
-                <button type="button" class="modal-close" id="modal-close" aria-label="Close">&times;</button>
+                <div class="pf-v5-c-modal-box__header-actions">
+                    <button type="button" class="pf-v5-c-button pf-m-plain pf-m-icon" id="modal-refresh-btn" aria-label="Refresh" title="Refresh" style="display: none;">&#8635;</button>
+                    <div class="pf-v5-c-modal-box__close">
+                        <button type="button" class="pf-v5-c-button pf-m-plain" id="modal-close" aria-label="Close">&times;</button>
+                    </div>
+                </div>
             </div>
-            <div id="modal-content" class="modal-content"></div>
-            <div id="modal-footer" class="modal-footer" style="display: none;"></div>
+            <div id="modal-content" class="modal-content pf-v5-c-modal-box__body"></div>
+            <div id="modal-footer" class="pf-v5-c-modal-box__footer" style="display: none;"></div>
         </div>
     </div>
 
@@ -405,9 +324,10 @@
                 var el = document.getElementById("page-message");
                 if (!el) return;
                 el.textContent = text;
-                el.className = "page-message visible " + type;
+                el.className = "page-message visible pf-v5-l-stack__item pf-v5-c-alert pf-m-" + (type === "error" ? "danger" : "warning");
+                el.setAttribute("aria-live", "polite");
                 clearTimeout(showMessage._timer);
-                showMessage._timer = setTimeout(function() { el.className = "page-message"; el.textContent = ""; }, 6000);
+                showMessage._timer = setTimeout(function() { el.className = "page-message pf-v5-l-stack__item pf-v5-c-alert"; el.textContent = ""; }, 6000);
             }
 
             function unwrapCallResult(raw) {
@@ -523,7 +443,10 @@
                 return "low";
             }
             function severityClass(impact) {
-                return normalizeImpact(impact);
+                var cls = normalizeImpact(impact);
+                if (cls === "important") return "high";
+                if (cls === "moderate") return "medium";
+                return cls;
             }
             function severityRank(impact) {
                 var i = (impact || "").toLowerCase();
@@ -595,8 +518,8 @@
                 var container = document.getElementById("host-container");
                 container.textContent = "";
                 var loadingEl = document.createElement("div");
-                loadingEl.className = "loading";
-                loadingEl.textContent = "Loading hosts...";
+                loadingEl.className = "pf-v5-c-empty-state";
+                loadingEl.innerHTML = '<div class="pf-v5-c-empty-state__content"><p class="pf-v5-c-empty-state__body">Loading hosts…</p></div>';
                 container.appendChild(loadingEl);
 
                 var promise;
@@ -622,8 +545,8 @@
                     if (hosts.length === 0) {
                         container.textContent = "";
                         var emptyEl = document.createElement("div");
-                        emptyEl.className = "empty-state";
-                        emptyEl.textContent = "No hosts found.";
+                        emptyEl.className = "pf-v5-c-empty-state";
+                        emptyEl.innerHTML = '<div class="pf-v5-c-empty-state__content"><p class="pf-v5-c-empty-state__body">No hosts found.</p></div>';
                         container.appendChild(emptyEl);
                         document.getElementById("counter").textContent = "No hosts";
                         document.getElementById("prev-btn").disabled = true;
@@ -637,7 +560,7 @@
                 }).catch(function() {
                     container.textContent = "";
                     var errEl = document.createElement("div");
-                    errEl.className = "error-message";
+                    errEl.className = "pf-v5-c-alert pf-m-danger";
                     errEl.textContent = "Failed to load hosts.";
                     container.appendChild(errEl);
                 });
@@ -666,7 +589,7 @@
             function countBySeverity(cves) {
                 var counts = { critical: 0, important: 0, moderate: 0, low: 0 };
                 cves.forEach(function(c) {
-                    var cls = severityClass(c.impact);
+                    var cls = normalizeImpact(c.impact);
                     if (counts[cls] !== undefined) counts[cls]++;
                 });
                 return counts;
@@ -679,7 +602,7 @@
                 hosts.forEach(function(host, index) {
                     var hostId = host.id || host.insights_id;
                     var card = document.createElement("div");
-                    card.className = index === 0 ? "host-card active" : "host-card";
+                    card.className = "host-card pf-v5-c-card" + (index === 0 ? " active" : "");
                     card.dataset.hostId = hostId;
 
                     var osInfo = "";
@@ -689,15 +612,16 @@
                     }
 
                     var hostName = document.createElement("div");
-                    hostName.className = "host-name";
+                    hostName.className = "pf-v5-c-title pf-m-lg pf-v5-u-mb-sm";
+                    hostName.style.color = "var(--pf-v5-global--link--Color)";
                     hostName.textContent = host.display_name || host.fqdn || host.id || "Unknown";
 
                     var hostIdEl = document.createElement("div");
-                    hostIdEl.className = "host-id";
+                    hostIdEl.className = "pf-v5-u-font-family-monospace pf-v5-u-mb-md";
                     hostIdEl.textContent = "ID: " + (hostId || "N/A");
 
                     var detailsGrid = document.createElement("div");
-                    detailsGrid.className = "host-details";
+                    detailsGrid.className = "host-details pf-v5-l-grid pf-v5-m-gutter";
 
                     var stalenessEl = document.createElement("div");
                     stalenessEl.className = "detail-item";
@@ -734,12 +658,12 @@
                     var severityRow = document.createElement("div");
                     severityRow.className = "severity-buttons-row";
                     var loadingCve = document.createElement("div");
-                    loadingCve.className = "loading";
-                    loadingCve.textContent = "Loading CVEs...";
+                    loadingCve.className = "pf-v5-c-content pf-v5-u-color-200";
+                    loadingCve.textContent = "Loading CVEs…";
                     severityRow.appendChild(loadingCve);
                     var refreshCveBtn = document.createElement("button");
                     refreshCveBtn.type = "button";
-                    refreshCveBtn.className = "btn btn-secondary btn-sm severity-refresh-btn";
+                    refreshCveBtn.className = "pf-v5-c-button pf-m-plain pf-m-icon severity-refresh-btn";
                     refreshCveBtn.title = "Refresh CVEs";
                     refreshCveBtn.setAttribute("aria-label", "Refresh CVEs");
                     refreshCveBtn.innerHTML = "&#8635;";
@@ -754,10 +678,13 @@
                     severityRow.appendChild(refreshCveBtn);
                     severityBtns.appendChild(severityRow);
 
-                    card.appendChild(hostName);
-                    card.appendChild(hostIdEl);
-                    card.appendChild(detailsGrid);
-                    card.appendChild(severityBtns);
+                    var cardBody = document.createElement("div");
+                    cardBody.className = "pf-v5-c-card__body";
+                    cardBody.appendChild(hostName);
+                    cardBody.appendChild(hostIdEl);
+                    cardBody.appendChild(detailsGrid);
+                    cardBody.appendChild(severityBtns);
+                    card.appendChild(cardBody);
                     container.appendChild(card);
 
                     loadCvesForHost(hostId).then(function(res) {
@@ -769,8 +696,7 @@
                         row.className = "severity-buttons-row";
                         if (res.error) {
                             var errEl = document.createElement("div");
-                            errEl.className = "error-message";
-                            errEl.style.fontSize = "13px";
+                            errEl.className = "pf-v5-c-alert pf-m-danger pf-v5-u-font-size-sm";
                             errEl.textContent = "Could not load CVEs. Ensure the host supports app-initiated tool calls.";
                             row.appendChild(errEl);
                         } else {
@@ -790,16 +716,14 @@
                             });
                             if (row.children.length === 0) {
                                 var noCve = document.createElement("div");
-                                noCve.className = "detail-value";
-                                noCve.style.color = "var(--color-text-secondary)";
-                                noCve.style.fontSize = "13px";
+                                noCve.className = "detail-value pf-v5-u-color-200 pf-v5-u-font-size-sm";
                                 noCve.textContent = "No CVEs";
                                 row.appendChild(noCve);
                             }
                         }
                         var refreshCveBtn = document.createElement("button");
                         refreshCveBtn.type = "button";
-                        refreshCveBtn.className = "btn btn-secondary btn-sm severity-refresh-btn";
+                        refreshCveBtn.className = "pf-v5-c-button pf-m-plain pf-m-icon severity-refresh-btn";
                         refreshCveBtn.title = "Refresh CVEs";
                         refreshCveBtn.setAttribute("aria-label", "Refresh CVEs");
                         refreshCveBtn.innerHTML = "&#8635;";
@@ -826,8 +750,8 @@
                 var container = document.getElementById("cve-list-container");
                 container.textContent = "";
                 var loadingEl = document.createElement("div");
-                loadingEl.className = "loading";
-                loadingEl.textContent = "Loading...";
+                loadingEl.className = "pf-v5-c-empty-state";
+                loadingEl.innerHTML = '<div class="pf-v5-c-empty-state__content"><p class="pf-v5-c-empty-state__body">Loading…</p></div>';
                 container.appendChild(loadingEl);
 
                 loadCvesForHost(hostId).then(function(res) {
@@ -835,39 +759,34 @@
                     if (res.error) {
                         container.textContent = "";
                         var errEl = document.createElement("div");
-                        errEl.className = "error-message";
+                        errEl.className = "pf-v5-c-alert pf-m-danger";
                         errEl.textContent = "Could not load CVEs. Ensure the host supports app-initiated tool calls.";
                         container.appendChild(errEl);
                         return;
                     }
-                    var filtered = cves.filter(function(c) { return severityClass(c.impact) === severity; });
+                    var filtered = cves.filter(function(c) { return normalizeImpact(c.impact) === severity; });
                     filtered.sort(function(a, b) { return severityRank(b.impact) - severityRank(a.impact) || (a.id || "").localeCompare(b.id || ""); });
 
                     container.textContent = "";
                     if (filtered.length === 0) {
                         var emptyEl = document.createElement("div");
-                        emptyEl.className = "empty-state";
-                        emptyEl.textContent = "No " + severity + " CVEs for this host.";
+                        emptyEl.className = "pf-v5-c-empty-state";
+                        emptyEl.innerHTML = '<div class="pf-v5-c-empty-state__content"><p class="pf-v5-c-empty-state__body">No ' + severity + ' CVEs for this host.</p></div>';
                         container.appendChild(emptyEl);
                         return;
                     }
+                    var wrap = document.createElement("div");
+                    wrap.className = "cve-buttons";
                     filtered.forEach(function(cve) {
                         var btn = document.createElement("button");
                         btn.type = "button";
-                        btn.className = "cve-section-btn";
-                        var span1 = document.createElement("span");
-                        span1.style.fontWeight = "600";
-                        span1.style.color = "var(--color-primary)";
-                        span1.textContent = cve.id;
-                        var span2 = document.createElement("span");
-                        span2.className = "severity-badge " + severityBadgeClass(cve.impact);
-                        span2.style.marginLeft = "8px";
-                        span2.textContent = (cve.impact || "").toUpperCase();
-                        btn.appendChild(span1);
-                        btn.appendChild(span2);
+                        btn.className = "pf-v5-c-button cve-btn " + severityClass(cve.impact);
+                        btn.textContent = cve.id;
+                        btn.dataset.cve = cve.id;
                         btn.addEventListener("click", function() { openCveOverlay(cve, hostId); });
-                        container.appendChild(btn);
+                        wrap.appendChild(btn);
                     });
+                    container.appendChild(wrap);
                 });
             }
 
@@ -885,8 +804,8 @@
                 var loadingRow = document.createElement("div");
                 loadingRow.className = "severity-buttons-row";
                 var loadingCve = document.createElement("div");
-                loadingCve.className = "loading";
-                loadingCve.textContent = "Loading CVEs...";
+                loadingCve.className = "pf-v5-c-content pf-v5-u-color-200";
+                loadingCve.textContent = "Loading CVEs…";
                 loadingRow.appendChild(loadingCve);
                 btnsEl.appendChild(loadingRow);
                 loadCvesForHost(hostId).then(function(res) {
@@ -898,8 +817,7 @@
                     row.className = "severity-buttons-row";
                     if (res.error) {
                         var errEl = document.createElement("div");
-                        errEl.className = "error-message";
-                        errEl.style.fontSize = "13px";
+                        errEl.className = "pf-v5-c-alert pf-m-danger pf-v5-u-font-size-sm";
                         errEl.textContent = "Could not load CVEs. Ensure the host supports app-initiated tool calls.";
                         row.appendChild(errEl);
                     } else {
@@ -919,16 +837,14 @@
                         });
                         if (row.children.length === 0) {
                             var noCve = document.createElement("div");
-                            noCve.className = "detail-value";
-                            noCve.style.color = "var(--color-text-secondary)";
-                            noCve.style.fontSize = "13px";
+                            noCve.className = "detail-value pf-v5-u-color-200 pf-v5-u-font-size-sm";
                             noCve.textContent = "No CVEs";
                             row.appendChild(noCve);
                         }
                     }
                     var refreshCveBtn = document.createElement("button");
                     refreshCveBtn.type = "button";
-                    refreshCveBtn.className = "btn btn-secondary btn-sm severity-refresh-btn";
+                    refreshCveBtn.className = "pf-v5-c-button pf-m-plain pf-m-icon severity-refresh-btn";
                     refreshCveBtn.title = "Refresh CVEs";
                     refreshCveBtn.setAttribute("aria-label", "Refresh CVEs");
                     refreshCveBtn.innerHTML = "&#8635;";
@@ -961,36 +877,31 @@
                 loadCvesForHost(currentHostForCveList).then(function(res) {
                     var cves = res.cves || [];
                     if (res.error) {
-                        if (container) container.innerHTML = "<div class=\"error-message\">Could not load CVEs. Ensure the host supports app-initiated tool calls.</div>";
+                        if (container) container.innerHTML = "<div class=\"pf-v5-c-alert pf-m-danger\">Could not load CVEs. Ensure the host supports app-initiated tool calls.</div>";
                         btn.disabled = false;
                         return;
                     }
-                    var filtered = cves.filter(function(c) { return severityClass(c.impact) === currentSeverityFilter; });
+                    var filtered = cves.filter(function(c) { return normalizeImpact(c.impact) === currentSeverityFilter; });
                     filtered.sort(function(a, b) { return severityRank(b.impact) - severityRank(a.impact) || (a.id || "").localeCompare(b.id || ""); });
                     if (container) container.textContent = "";
                     if (filtered.length === 0) {
                         var emptyEl = document.createElement("div");
-                        emptyEl.className = "empty-state";
-                        emptyEl.textContent = "No " + currentSeverityFilter + " CVEs for this host.";
+                        emptyEl.className = "pf-v5-c-empty-state";
+                        emptyEl.innerHTML = '<div class="pf-v5-c-empty-state__content"><p class="pf-v5-c-empty-state__body">No ' + currentSeverityFilter + ' CVEs for this host.</p></div>';
                         container.appendChild(emptyEl);
                     } else {
+                        var wrap = document.createElement("div");
+                        wrap.className = "cve-buttons";
                         filtered.forEach(function(cve) {
                             var cveBtn = document.createElement("button");
                             cveBtn.type = "button";
-                            cveBtn.className = "cve-section-btn";
-                            var span1 = document.createElement("span");
-                            span1.style.fontWeight = "600";
-                            span1.style.color = "var(--color-primary)";
-                            span1.textContent = cve.id;
-                            var span2 = document.createElement("span");
-                            span2.className = "severity-badge " + severityBadgeClass(cve.impact);
-                            span2.style.marginLeft = "8px";
-                            span2.textContent = (cve.impact || "").toUpperCase();
-                            cveBtn.appendChild(span1);
-                            cveBtn.appendChild(span2);
+                            cveBtn.className = "pf-v5-c-button cve-btn " + severityClass(cve.impact);
+                            cveBtn.textContent = cve.id;
+                            cveBtn.dataset.cve = cve.id;
                             cveBtn.addEventListener("click", function() { openCveOverlay(cve, currentHostForCveList); });
-                            container.appendChild(cveBtn);
+                            wrap.appendChild(cveBtn);
                         });
+                        container.appendChild(wrap);
                     }
                     btn.disabled = false;
                 }).catch(function() { btn.disabled = false; });
@@ -1092,7 +1003,7 @@
                 if (typeof attrs !== "object" || attrs === null) attrs = {};
                 if (fallbackItem && (fallbackItem._raw || fallbackItem.attributes)) {
                     var fb = fallbackItem._raw || fallbackItem.attributes || fallbackItem;
-                    ["description", "synopsis", "impact", "cvss3_score", "cvss2_score", "public_date", "modified_date", "status", "known_exploit", "systems_affected", "advisories_list"].forEach(function(k) {
+                    ["description", "synopsis", "impact", "cvss3_score", "cvss2_score", "cvss3_metrics", "public_date", "modified_date", "status", "known_exploit", "systems_affected", "advisories_list"].forEach(function(k) {
                         if ((attrs[k] === undefined || attrs[k] === null || attrs[k] === "") && fb[k] !== undefined && fb[k] !== null && fb[k] !== "") attrs[k] = fb[k];
                     });
                 }
@@ -1116,11 +1027,14 @@
                 var ids = ["description", "metadata", "explain", "devices"];
                 if (hasAdv) ids.push("advisories");
                 ids.push("links", "remediate");
-                var wrap = el("div", "cve-section-list");
+                var wrap = el("div", "cve-section-list cve-overlay-section-nav");
                 ids.forEach(function(id) {
                     var btn = document.createElement("button");
                     btn.type = "button";
-                    btn.className = "cve-section-btn";
+                    btn.className = "pf-v5-c-button pf-m-secondary";
+                    btn.style.width = "100%";
+                    btn.style.textAlign = "left";
+                    btn.setAttribute("data-section", id);
                     btn.textContent = sectionLabel(id);
                     btn.onclick = function() { showSection(id); };
                     wrap.appendChild(btn);
@@ -1138,27 +1052,32 @@
                 var safeId = (cveId || "").replace(/"/g, "&quot;");
 
                 function sect(title, fn) {
-                    var s = el("div", "cve-detail-section");
-                    s.appendChild(el("div", "section-title", title));
-                    fn(s);
+                    var s = el("div", "cve-detail-section pf-v5-c-card");
+                    s.style.marginBottom = "16px";
+                    var header = el("div", "pf-v5-c-card__header");
+                    header.appendChild(el("div", "pf-v5-c-card__title", title));
+                    s.appendChild(header);
+                    var body = el("div", "pf-v5-c-card__body");
+                    fn(body);
+                    s.appendChild(body);
                     container.appendChild(s);
                 }
                 if (sectionId === "description") {
                     sect("Description", function(s) {
-                        if (overlaySectionLoading.description) { s.appendChild(el("div", "loading", "Loading…")); return; }
-                        if (overlaySectionErrors.description) { var e = el("div", "error-message"); e.textContent = overlaySectionErrors.description; s.appendChild(e); return; }
-                        var d = el("div", "description"); d.textContent = descText; s.appendChild(d);
+                        if (overlaySectionLoading.description) { s.appendChild(el("div", "pf-v5-c-content", "Loading data…")); return; }
+                        if (overlaySectionErrors.description) { var e = el("div", "pf-v5-c-alert pf-m-danger"); e.textContent = overlaySectionErrors.description; s.appendChild(e); return; }
+                        var d = el("div", "pf-v5-c-content"); d.textContent = descText; d.style.lineHeight = "1.7"; s.appendChild(d);
                     });
                     return;
                 }
                 if (sectionId === "metadata") {
                     sect("Metadata", function(s) {
-                        var grid = el("div", "metadata-grid");
+                        var grid = el("div", "metadata-grid pf-v5-l-grid");
                         function metaRow(l, v) { var item = el("div", "metadata-item"); item.appendChild(el("div", "metadata-label", l)); item.appendChild(el("div", "metadata-value", String(v))); grid.appendChild(item); }
                         if (attrs.public_date) metaRow("Public Date", new Date(attrs.public_date).toLocaleDateString());
                         if (attrs.modified_date) metaRow("Modified Date", new Date(attrs.modified_date).toLocaleDateString());
                         if (attrs.impact) metaRow("Impact", attrs.impact);
-                        if (attrs.cvss3_score != null) metaRow("CVSS v3", Number(attrs.cvss3_score).toFixed(1));
+                        if (attrs.cvss3_score != null) metaRow("CVSS v3", Number(attrs.cvss3_score).toFixed(1) + (attrs.cvss3_metrics ? " (" + attrs.cvss3_metrics + ")" : ""));
                         if (attrs.cvss2_score != null) metaRow("CVSS v2", Number(attrs.cvss2_score).toFixed(1));
                         if (attrs.status) metaRow("Status", attrs.status);
                         if (attrs.known_exploit != null) metaRow("Known Exploit", attrs.known_exploit ? "Yes" : "No");
@@ -1170,21 +1089,21 @@
                 }
                 if (sectionId === "explain") {
                     sect("Why it affects your systems", function(s) {
-                        if (overlaySectionLoading.explain) { s.appendChild(el("div", "loading", "Loading…")); return; }
-                        if (overlaySectionErrors.explain) { var e = el("div", "error-message"); e.textContent = overlaySectionErrors.explain; s.appendChild(e); return; }
-                        var d = el("div", "explain-truncate"); d.textContent = currentOverlayExplainText != null ? currentOverlayExplainText : "Choose an affected system to see an explanation."; s.appendChild(d);
+                        if (overlaySectionLoading.explain) { s.appendChild(el("div", "pf-v5-c-content", "Loading data…")); return; }
+                        if (overlaySectionErrors.explain) { var e = el("div", "pf-v5-c-alert pf-m-danger"); e.textContent = overlaySectionErrors.explain; s.appendChild(e); return; }
+                        var d = el("div", "pf-v5-c-content"); d.textContent = currentOverlayExplainText != null ? currentOverlayExplainText : "Set a device scope or choose an affected system to see an explanation."; s.appendChild(d);
                     });
                     return;
                 }
                 if (sectionId === "devices") {
                     sect("Affected devices", function(s) {
-                        if (overlaySectionLoading.devices) { s.appendChild(el("div", "loading", "Loading…")); return; }
-                        if (overlaySectionErrors.devices) { var e = el("div", "error-message"); e.textContent = overlaySectionErrors.devices; s.appendChild(e); return; }
-                        var ul = el("ul", "flat");
+                        if (overlaySectionLoading.devices) { s.appendChild(el("div", "pf-v5-c-content", "Loading data…")); return; }
+                        if (overlaySectionErrors.devices) { var e = el("div", "pf-v5-c-alert pf-m-danger"); e.textContent = overlaySectionErrors.devices; s.appendChild(e); return; }
+                        var ul = el("ul", "flat overlay-section");
                         if (devices.length === 0) { var li = el("li"); li.textContent = "No affected systems."; ul.appendChild(li); }
                         else devices.forEach(function(d) {
                             var li = el("li");
-                            if (d.name && d.name !== d.uuid) { li.textContent = d.name + " "; var span = el("span"); span.style.color = "var(--color-text-secondary)"; span.style.fontSize = "12px"; span.textContent = "(" + d.uuid + ")"; li.appendChild(span); }
+                            if (d.name && d.name !== d.uuid) { li.textContent = d.name + " "; var span = el("span"); span.style.color = "var(--pf-v5-global--Color--200)"; span.style.fontSize = "12px"; span.textContent = "(" + d.uuid + ")"; li.appendChild(span); }
                             else li.textContent = d.uuid;
                             ul.appendChild(li);
                         });
@@ -1194,13 +1113,17 @@
                 }
                 if (sectionId === "advisories") {
                     sect("Available Advisories", function(s) {
-                        var list = el("div", "advisories-list");
+                        var list = document.createElement("ul");
+                        list.className = "advisories-list";
                         (attrs.advisories_list || []).forEach(function(adv) {
                             var url = typeof adv === "string" ? adv : "";
+                            var li = document.createElement("li");
                             var a = document.createElement("a");
-                            a.href = url; a.target = "_blank"; a.rel = "noopener"; a.className = "advisory-link";
+                            a.href = url; a.target = "_blank"; a.rel = "noopener";
+                            a.className = "pf-v5-c-button pf-m-link";
                             a.textContent = url.split("/").pop() || url || "Advisory";
-                            list.appendChild(a);
+                            li.appendChild(a);
+                            list.appendChild(li);
                         });
                         s.appendChild(list);
                     });
@@ -1208,17 +1131,21 @@
                 }
                 if (sectionId === "links") {
                     sect("External Links", function(s) {
-                        var links = el("div", "external-links");
-                        function addLink(href, label, cls) {
+                        var links = el("div", "external-links pf-v5-l-flex pf-v5-m-gap-md pf-v5-m-wrap");
+                        function addLink(href, label, isPrimary) {
                             if (!href) return;
                             var a = document.createElement("a");
-                            a.href = href; a.target = "_blank"; a.rel = "noopener"; a.className = cls || "external-link"; a.textContent = label;
+                            a.href = href;
+                            a.target = "_blank";
+                            a.rel = "noopener";
+                            a.className = isPrimary ? "pf-v5-c-button pf-m-primary" : "pf-v5-c-button pf-m-secondary";
+                            a.textContent = label;
                             links.appendChild(a);
                         }
                         var url = (data && data.url) || (cveDetail && cveDetail.data && cveDetail.data.url);
-                        if (url) addLink(url, "Red Hat Console");
-                        addLink("https://access.redhat.com/security/cve/" + safeId, "Red Hat Security", "external-link external-link-secondary");
-                        addLink("https://nvd.nist.gov/vuln/detail/" + safeId, "NVD", "external-link external-link-secondary");
+                        if (url) addLink(url, "Red Hat Console", true);
+                        addLink("https://access.redhat.com/security/cve/" + safeId, "Red Hat Security", false);
+                        addLink("https://nvd.nist.gov/vuln/detail/" + safeId, "NVD", false);
                         s.appendChild(links);
                     });
                     return;
@@ -1226,8 +1153,8 @@
                 if (sectionId === "remediate") {
                     sect("Remediate", function(s) {
                         var para = el("p"); para.style.marginBottom = "12px"; para.textContent = "Create a remediation playbook and download the YAML."; s.appendChild(para);
-                        var remBtn = document.createElement("button"); remBtn.type = "button"; remBtn.className = "btn"; remBtn.textContent = "Remediate"; s.appendChild(remBtn);
-                        var dlBtn = document.createElement("button"); dlBtn.type = "button"; dlBtn.className = "btn btn-secondary"; dlBtn.id = "remediate-section-download-btn"; dlBtn.style.marginLeft = "8px"; dlBtn.style.display = "none"; dlBtn.textContent = "Download YAML"; s.appendChild(dlBtn);
+                        var remBtn = document.createElement("button"); remBtn.type = "button"; remBtn.className = "pf-v5-c-button pf-m-primary"; remBtn.textContent = "Remediate"; s.appendChild(remBtn);
+                        var dlBtn = document.createElement("button"); dlBtn.type = "button"; dlBtn.className = "pf-v5-c-button pf-m-secondary"; dlBtn.id = "remediate-section-download-btn"; dlBtn.style.marginLeft = "8px"; dlBtn.style.display = "none"; dlBtn.textContent = "Download YAML"; s.appendChild(dlBtn);
                         var statusEl = document.createElement("div"); statusEl.id = "remediate-section-download-status"; statusEl.style.marginTop = "12px"; statusEl.style.fontSize = "13px"; s.appendChild(statusEl);
                         var msgEl = document.createElement("div"); msgEl.id = "remediate-section-message"; msgEl.className = "remediate-section-message"; s.appendChild(msgEl);
                         wireRemediateButtons(cveId, remBtn, dlBtn, statusEl);
@@ -1313,7 +1240,7 @@
                     backWrap.textContent = "";
                     var back = document.createElement("button");
                     back.type = "button";
-                    back.className = "btn btn-secondary";
+                    back.className = "pf-v5-c-button pf-m-secondary";
                     back.textContent = "← Back to list";
                     back.onclick = showSectionList;
                     backWrap.appendChild(back);
@@ -1371,17 +1298,7 @@
                     var severity = attrs.severity || attrs.impact || (cve.impact || "Unknown");
                     var cvss = attrs.cvss3_score || attrs.cvss2_score || cve.cvss;
                     severityEl.style.display = "inline-flex";
-                    severityEl.textContent = "";
-                    var badge = document.createElement("span");
-                    badge.className = "severity-badge " + severityBadgeClass(severity);
-                    badge.textContent = String(severity).toUpperCase();
-                    severityEl.appendChild(badge);
-                    if (cvss != null && Number(cvss) > 0) {
-                        var cvssSpan = document.createElement("span");
-                        cvssSpan.className = "cvss-score";
-                        cvssSpan.textContent = "CVSS " + Number(cvss).toFixed(1);
-                        severityEl.appendChild(cvssSpan);
-                    }
+                    severityEl.innerHTML = '<span class="severity-label severity-label-' + severityBadgeClass(severity) + '">' + escapeHtml(severity) + "</span>" + (cvss != null && Number(cvss) > 0 ? '<span class="pf-v5-c-label pf-m-outline">CVSS ' + Number(cvss).toFixed(1) + "</span>" : "");
                 }
                 if (contentEl) {
                     contentEl.textContent = "";
@@ -1465,17 +1382,7 @@
                     var severity = attrs.severity || attrs.impact || "Unknown";
                     var cvss = attrs.cvss3_score || attrs.cvss2_score;
                     severityEl.style.display = "inline-flex";
-                    severityEl.textContent = "";
-                    var badge = document.createElement("span");
-                    badge.className = "severity-badge " + severityBadgeClass(severity);
-                    badge.textContent = severity;
-                    severityEl.appendChild(badge);
-                    if (cvss != null && Number(cvss) > 0) {
-                        var cvssSpan = document.createElement("span");
-                        cvssSpan.className = "cvss-score";
-                        cvssSpan.textContent = "CVSS " + Number(cvss).toFixed(1);
-                        severityEl.appendChild(cvssSpan);
-                    }
+                    severityEl.innerHTML = '<span class="severity-label severity-label-' + severityBadgeClass(severity) + '">' + escapeHtml(severity) + "</span>" + (cvss != null && Number(cvss) > 0 ? '<span class="pf-v5-c-label pf-m-outline">CVSS ' + Number(cvss).toFixed(1) + "</span>" : "");
                 }
                 if (currentOverlaySectionId) {
                     showSection(currentOverlaySectionId);

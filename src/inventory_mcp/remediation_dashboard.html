@@ -13,169 +13,48 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Remediation Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/@patternfly/patternfly@5.4.2/patternfly.min.css">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        :root {
-            --font-sans: system-ui, -apple-system, sans-serif;
-            --color-text-primary: #333;
-            --color-text-secondary: #666;
-            --color-bg: #fff;
-            --color-bg-secondary: #f5f5f5;
-            --color-border: #ddd;
-            --color-primary: #0066cc;
-            --color-success: #28a745;
-            --color-warning: #ffc107;
-            --color-danger: #dc3545;
-            --severity-critical: #dc3545;
-            --severity-high: #fd7e14;
-            --severity-medium: #ffc107;
-            --severity-low: #6c757d;
-        }
-        [data-theme="dark"] {
-            --color-text-primary: #eee;
-            --color-text-secondary: #999;
-            --color-bg: #1a1a1a;
-            --color-bg-secondary: #252525;
-            --color-border: #444;
-            --color-primary: #4da6ff;
-        }
-        @media (prefers-color-scheme: dark) {
-            :root:not([data-theme]) {
-                --color-text-primary: #eee;
-                --color-text-secondary: #999;
-                --color-bg: #1a1a1a;
-                --color-bg-secondary: #252525;
-                --color-border: #444;
-                --color-primary: #4da6ff;
-            }
-        }
-        body { font-family: var(--font-sans); background: var(--color-bg); color: var(--color-text-primary); padding: 16px; min-height: 100vh; }
-        .container { max-width: 900px; margin: 0 auto; }
-        .dashboard-card {
-            background: var(--color-bg-secondary);
-            border: 1px solid var(--color-border);
-            border-radius: 12px;
-            margin-bottom: 24px;
-            overflow: hidden;
-        }
-        .top-bar {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 14px 16px;
-            border-bottom: 1px solid var(--color-border);
-        }
-        .top-bar-title { font-size: 18px; font-weight: 700; }
-        .top-bar-scope {
-            font-size: 14px;
-            color: var(--color-text-secondary);
-            padding: 4px 10px;
-            background: var(--color-bg);
-            border-radius: 6px;
-            border: 1px solid var(--color-border);
-        }
-        .dashboard-card-body { padding: 16px; }
-        .section-head-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-        .section-head-row h3 { margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-secondary); }
-        .cve-list-summary { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 10px; }
-        .cve-severity-counters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
-        .cve-severity-counter { padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; color: #fff; }
-        .cve-severity-counter.critical { background: var(--severity-critical); }
-        .cve-severity-counter.important { background: var(--severity-high); }
-        .cve-severity-counter.moderate { background: var(--severity-medium); color: #333; }
-        .cve-severity-counter.low { background: var(--severity-low); }
-        .btn { padding: 8px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; background: var(--color-primary); color: white; }
-        .btn:hover { opacity: 0.9; }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-secondary { background: var(--color-border); color: var(--color-text-primary); }
-        .cve-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
-        .cve-btn {
-            padding: 10px 16px;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-family: monospace;
-            font-size: 13px;
-            cursor: pointer;
-            color: #fff;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-        }
-        .cve-btn:hover { opacity: 0.92; transform: translateY(-1px); }
-        .cve-btn.critical { background: var(--severity-critical); }
-        .cve-btn.high { background: var(--severity-high); }
-        .cve-btn.medium { background: var(--severity-medium); color: #333; }
-        .cve-btn.low { background: var(--severity-low); }
-        .empty-state { padding: 16px; color: var(--color-text-secondary); font-style: italic; }
-        .error-message { padding: 12px; background: #fee; border: 1px solid var(--color-danger); border-radius: 8px; color: var(--color-danger); font-size: 14px; margin-top: 8px; }
-        .remediate-section-message { margin-top: 12px; padding: 10px 12px; border-radius: 6px; font-size: 14px; display: none; }
+        /* Remediation dashboard overrides for PatternFly + embedded iframe context */
+        body { padding: var(--pf-v5-global--spacer--md); min-height: 100vh; }
+        .remediation-dashboard { max-width: 900px; margin: 0 auto; }
+        .remediate-section-message { margin-top: 12px; display: none; }
         .remediate-section-message.visible { display: block; }
-        .remediate-section-message.error { background: #f8d7da; border: 1px solid var(--color-danger); color: #721c24; }
-                        .remediate-section-message.busy { background: var(--color-bg-secondary); border: 1px solid var(--color-border); color: var(--color-text-secondary); }
-        .remediate-yaml-selectable { width: 100%; min-height: 120px; max-height: 320px; margin-top: 8px; padding: 10px; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.4; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-bg); color: var(--color-text-primary); resize: vertical; user-select: text; white-space: pre-wrap; word-break: normal; overflow-wrap: normal; }
-        .loading { color: var(--color-text-secondary); }
-        pre.playbook-preview { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 8px; padding: 16px; overflow: auto; font-size: 12px; max-height: 320px; white-space: pre-wrap; }
-        .page-message { padding: 10px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; display: none; }
+        .remediate-yaml-selectable { width: 100%; min-height: 120px; max-height: 320px; margin-top: 8px; padding: 10px; font-family: var(--pf-v5-global--FontFamily--monospace); font-size: 12px; line-height: 1.4; resize: vertical; user-select: text; white-space: pre-wrap; }
+        .page-message { margin-bottom: 12px; display: none; }
         .page-message.visible { display: block; }
-        .page-message.warning { background: #fff3cd; border: 1px solid var(--color-warning); color: #856404; }
-        .page-message.error { background: #f8d7da; border: 1px solid var(--color-danger); color: #721c24; }
-        .playbook-download-banner {
-            display: none;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 12px 16px;
-            margin-bottom: 12px;
-            background: #e7f3ff;
-            border: 1px solid var(--color-primary);
-            border-radius: 8px;
-            font-size: 14px;
-        }
+        .playbook-download-banner { display: none; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
         .playbook-download-banner.visible { display: flex; flex-wrap: wrap; }
-        .playbook-download-banner .banner-text { color: var(--color-text-primary); }
-        .playbook-download-banner .btn { flex-shrink: 0; }
-        .explain-truncate { max-height: none; line-height: 1.5; font-size: 14px; }
-        /* CVE overlay – match cve_details.html UX */
-        .cve-overlay-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid var(--color-border); }
-        .cve-overlay-title { font-size: 24px; font-weight: 700; color: var(--color-text-primary); margin-bottom: 8px; }
-        .cve-overlay-severity { display: inline-flex; align-items: center; gap: 12px; font-size: 16px; flex-wrap: wrap; }
-        .severity-badge { padding: 6px 14px; border-radius: 16px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
-        .severity-badge.critical { background: var(--severity-critical); color: white; }
-        .severity-badge.important { background: var(--severity-high); color: white; }
-        .severity-badge.moderate { background: var(--severity-medium); color: #333; }
-        .severity-badge.low { background: var(--severity-low); color: white; }
-        .cvss-score { font-size: 20px; font-weight: 700; color: var(--color-text-secondary); }
-        .cve-detail-section { background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-        .cve-detail-section .section-title { font-size: 14px; font-weight: 700; color: var(--color-text-primary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px; }
-        .cve-detail-section .description { font-size: 14px; line-height: 1.7; color: var(--color-text-primary); }
+        .cve-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+        .cve-btn { font-family: var(--pf-v5-global--FontFamily--monospace); font-size: 13px; }
+        .cve-btn.critical { background: var(--pf-v5-global--danger-color--100); color: #fff; }
+        .cve-btn.high { background: var(--pf-v5-global--palette--orange-400); color: #fff; }
+        .cve-btn.medium { background: var(--pf-v5-global--warning-color--100); color: #151515; }
+        .cve-btn.low { background: var(--pf-v5-global--palette--black-600); color: #fff; }
+        /* Severity labels - original vibrant colors (match CVE buttons) */
+        .severity-label { padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; display: inline-block; }
+        .severity-label-critical { background: var(--pf-v5-global--danger-color--100); color: #fff; }
+        .severity-label-important { background: var(--pf-v5-global--palette--orange-400); color: #fff; }
+        .severity-label-moderate { background: var(--pf-v5-global--warning-color--100); color: #151515; }
+        .severity-label-low { background: var(--pf-v5-global--palette--black-600); color: #fff; }
+        /* Scope label - original pill style */
+        #scope-label { background: var(--pf-v5-global--BackgroundColor--200); padding: 6px 12px; border-radius: 6px; font-size: 14px; border: 1px solid var(--pf-v5-global--BorderColor--200); }
         .metadata-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
         .metadata-item { display: flex; flex-direction: column; }
-        .metadata-label { font-size: 11px; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+        .metadata-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; color: var(--pf-v5-global--Color--200); }
         .metadata-value { font-size: 13px; font-weight: 500; }
-        .advisories-list { display: flex; flex-direction: column; gap: 6px; }
-        .advisory-link { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-primary); text-decoration: none; font-weight: 600; font-size: 13px; transition: all 0.2s; max-width: fit-content; }
-        .advisory-link:hover { opacity: 0.9; }
-        .external-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
-        .external-link { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; background: var(--color-primary); color: white; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 13px; transition: all 0.2s; }
-        .external-link:hover { opacity: 0.92; }
-        .external-link-secondary { background: var(--color-bg-secondary); color: var(--color-text-primary); border: 2px solid var(--color-border); }
-        .badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
-        .badge-yes { background: var(--color-success); color: white; }
-        .badge-no { background: var(--color-border); color: var(--color-text-secondary); }
-        .overlay-section ul.flat { list-style: none; }
-        .overlay-section ul.flat li { padding: 6px 0; border-bottom: 1px solid var(--color-border); font-size: 13px; }
+        /* Advisories: vertical list + PatternFly link style (pf-m-link) per PF docs */
+        .advisories-list { display: flex; flex-direction: column; gap: var(--pf-v5-global--spacer--sm); list-style: none; padding: 0; margin: 0; }
+        .advisories-list li { margin: 0; }
+        .external-links { margin-top: 8px; }
+        .overlay-section ul.flat { list-style: none; padding: 0; margin: 0; }
+        .overlay-section ul.flat li { padding: 6px 0; border-bottom: 1px solid var(--pf-v5-global--BorderColor--100); font-size: 13px; }
         .overlay-section ul.flat li:last-child { border-bottom: none; }
-        .modal-footer { padding: 12px 16px; border-top: 1px solid var(--color-border); flex-shrink: 0; display: flex; gap: 8px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
-        .modal-footer-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-        /* Modal overlay: fill viewport so header/footer are never clipped */
         .modal-backdrop {
             display: none;
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            min-height: 100vh;
-            min-height: 100dvh;
+            top: 0; left: 0; right: 0; bottom: 0;
+            min-height: 100vh; min-height: 100dvh;
             background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
             align-items: center;
@@ -186,9 +65,7 @@
         }
         .modal-backdrop.visible { display: flex; }
         .modal-box {
-            background: var(--color-bg);
-            border: 1px solid var(--color-border);
-            border-radius: 12px;
+            background: var(--pf-v5-global--BackgroundColor--100);
             max-width: 92vw;
             width: 800px;
             height: min(92vh, 92dvh);
@@ -197,122 +74,98 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            box-shadow: var(--pf-v5-global--BoxShadow--xl);
             flex-shrink: 0;
+            border-radius: var(--pf-v5-global--BorderRadius--sm);
+            border: 1px solid var(--pf-v5-global--BorderColor--100);
         }
         .modal-box.modal-box--full {
-            width: 95vw;
-            max-width: 95vw;
-            height: min(98vh, 98dvh);
-            max-height: min(98vh, 98dvh);
+            width: 95vw; max-width: 95vw;
+            height: min(98vh, 98dvh); max-height: min(98vh, 98dvh);
         }
-        .cve-section-list { padding: 16px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
-        .cve-section-btn {
-            display: block;
-            width: 100%;
-            padding: 14px 18px;
-            text-align: left;
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--color-text-primary);
-            background: var(--color-bg-secondary);
-            border: 1px solid var(--color-border);
-            border-radius: 8px;
-            cursor: pointer;
-            text-decoration: none;
-        }
-        .cve-section-btn:hover { background: var(--color-border); }
-        .modal-back-wrap { display: inline-flex; align-items: center; margin-right: 8px; }
-        .modal-back-wrap .btn { padding: 4px 10px; font-size: 12px; white-space: nowrap; }
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--color-border);
-            flex-shrink: 0;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-        .modal-header-left { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-        .modal-title { font-size: 18px; font-weight: 700; margin: 0; }
-        #modal-severity { display: inline-flex; align-items: center; gap: 8px; }
-        #modal-severity .severity-badge { padding: 4px 10px; font-size: 11px; }
-        #modal-severity .cvss-score { font-size: 16px; }
-        .cve-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--color-border); flex-shrink: 0; overflow-x: auto; }
-        .cve-tab { padding: 10px 14px; border: none; background: none; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--color-text-secondary); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
-        .cve-tab:hover { color: var(--color-text-primary); }
-        .cve-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
-        .cve-tabpanel { display: none; padding: 16px; overflow-y: auto; min-height: 0; flex: 1; }
-        .cve-tabpanel.active { display: block; }
-        .modal-close {
-            font-size: 24px;
-            line-height: 1;
-            cursor: pointer;
-            background: none;
-            border: none;
-            color: var(--color-text-secondary);
-            padding: 0 4px;
-        }
-        .modal-close:hover { color: var(--color-text-primary); }
-        .modal-header-actions { display: flex; align-items: center; gap: 8px; }
-        .btn-sm { padding: 4px 10px; font-size: 12px; }
-        .modal-content {
-            display: flex;
-            flex-direction: column;
-            padding: 0;
-            overflow: hidden;
-            flex: 1;
-            min-height: 0;
-            font-size: 14px;
-        }
+        .modal-content { display: flex; flex-direction: column; padding: 0; overflow: hidden; flex: 1; min-height: 0; font-size: 14px; }
+        .modal-back-wrap { display: inline-flex; align-items: center; margin-right: 8px; flex-shrink: 0; }
+        .cve-section-list { padding: var(--pf-v5-global--spacer--md); display: flex; flex-direction: column; gap: var(--pf-v5-global--spacer--sm); overflow-y: auto; }
+        #modal-severity { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        /* Prevent right-side components from wrapping - keep refresh/close on top row */
+        .pf-v5-c-card__header { display: flex; flex-wrap: nowrap; align-items: center; gap: 12px; flex-direction: row; }
+        .pf-v5-c-card__header .pf-v5-c-card__title { flex: 1 1 auto; min-width: 0; }
+        .pf-v5-c-card__actions { flex-shrink: 0; }
+        .modal-box .pf-v5-c-modal-box__header { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center; gap: 12px; }
+        .modal-box .pf-v5-c-modal-box__header-main { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; flex-direction: row; }
+        .modal-box .pf-v5-c-modal-box__header-main .pf-v5-c-modal-box__title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 auto; }
+        .modal-box .pf-v5-c-modal-box__header-actions { flex-shrink: 0; display: inline-flex !important; flex-wrap: nowrap; align-items: center; gap: 4px; }
+        .cve-list-header-row { flex-wrap: nowrap; }
+        .cve-list-header-row > *:last-child { flex-shrink: 0; }
+        /* CVEs section: keep refresh on same row as title */
+        .pf-v5-c-card__body > div:first-of-type { flex-wrap: nowrap !important; flex-direction: row !important; }
+        #btn-refresh-cves { flex-shrink: 0; }
+        /* Remove unnecessary border from refresh buttons */
+        #btn-refresh-cves { border: none !important; box-shadow: none !important; }
+        #modal-refresh-btn { border: none !important; box-shadow: none !important; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div id="page-message" class="page-message" role="alert" aria-live="polite"></div>
-        <div id="playbook-download-banner" class="playbook-download-banner" role="status" aria-live="polite">
-            <span class="banner-text">Playbook ready. Download before closing or refreshing.</span>
-            <button type="button" class="btn" id="playbook-download-banner-btn">Download YAML</button>
+    <div class="remediation-dashboard pf-v5-l-flex pf-v5-m-column pf-v5-m-gap-md">
+        <div id="page-message" class="page-message pf-v5-c-alert pf-m-warning" role="alert" aria-live="polite" style="display: none;"></div>
+        <div id="playbook-download-banner" class="playbook-download-banner pf-v5-c-banner pf-m-info" role="status" aria-live="polite">
+            <span class="pf-v5-c-banner__text">Playbook ready. Download before closing or refreshing.</span>
+            <button type="button" class="pf-v5-c-button pf-m-primary" id="playbook-download-banner-btn">Download YAML</button>
         </div>
-        <div class="dashboard-card">
-            <div class="top-bar" id="top-bar">
-                <span class="top-bar-title">Remediation Dashboard</span>
-                <span class="top-bar-scope" id="scope-label">…</span>
+        <div class="pf-v5-c-card">
+            <div class="pf-v5-c-card__header" id="top-bar">
+                <div class="pf-v5-c-card__title">
+                    <h2 class="pf-v5-c-title pf-m-2xl">Remediation Dashboard</h2>
+                </div>
+                <div class="pf-v5-c-card__actions">
+                    <span class="pf-v5-c-label pf-m-outline" id="scope-label">…</span>
+                </div>
             </div>
-            <div class="dashboard-card-body">
-                <div class="section-head-row">
-                    <h3>CVEs</h3>
-                    <button type="button" class="btn btn-secondary" id="btn-refresh-cves" aria-label="Refresh CVE list" title="Refresh CVE list">🔄</button>
+            <div class="pf-v5-c-card__body">
+                <div class="pf-v5-l-flex pf-v5-m-justify-content-space-between pf-v5-m-align-items-center pf-v5-m-gap-md" style="margin-bottom: 12px;">
+                    <h3 class="pf-v5-c-title pf-m-md" style="margin: 0; text-transform: uppercase; letter-spacing: 0.5px; color: var(--pf-v5-global--Color--200);">CVEs</h3>
+                    <button type="button" class="pf-v5-c-button pf-m-plain pf-m-icon" id="btn-refresh-cves" aria-label="Refresh CVE list" title="Refresh CVE list">&#8635;</button>
                 </div>
                 <div id="cve-list-container">
-                    <div class="empty-state" id="cve-empty">Loading CVEs…</div>
+                    <div class="pf-v5-l-flex pf-v5-m-gap-md" style="margin-bottom: 12px;">
+                        <span class="severity-label severity-label-critical">Critical: 0</span>
+                        <span class="severity-label severity-label-important">Important: 0</span>
+                        <span class="severity-label severity-label-moderate">Moderate: 0</span>
+                        <span class="severity-label severity-label-low">Low: 0</span>
+                    </div>
+                    <div class="pf-v5-c-empty-state" id="cve-empty">
+                        <div class="pf-v5-c-empty-state__content">
+                            <p class="pf-v5-c-empty-state__body">Loading CVEs…</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <div id="modal-backdrop" class="modal-backdrop" aria-hidden="true">
-        <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-            <div class="modal-header">
-                <div class="modal-header-left">
+        <div class="modal-box pf-v5-c-modal-box pf-m-lg" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <div class="pf-v5-c-modal-box__header">
+                <div class="pf-v5-c-modal-box__header-main">
                     <span id="modal-back-wrap" class="modal-back-wrap" style="display: none;"></span>
-                    <h2 id="modal-title" class="modal-title"></h2>
-                    <div id="modal-severity" class="cve-overlay-severity" style="display: none;"></div>
+                    <h2 id="modal-title" class="pf-v5-c-modal-box__title pf-v5-c-title pf-m-2xl"></h2>
+                    <div id="modal-severity" class="pf-v5-l-flex pf-v5-m-gap-md pf-v5-m-align-items-center" style="display: none;"></div>
                 </div>
-                <div class="modal-header-actions">
-                    <button type="button" class="btn btn-secondary btn-sm" id="modal-refresh-btn" aria-label="Refresh" title="Refresh" style="display: none;">🔄</button>
-                    <button type="button" class="modal-close" id="modal-close" aria-label="Close">&times;</button>
+                <div class="pf-v5-c-modal-box__header-actions">
+                    <button type="button" class="pf-v5-c-button pf-m-plain pf-m-icon" id="modal-refresh-btn" aria-label="Refresh" title="Refresh" style="display: none;">&#8635;</button>
+                    <div class="pf-v5-c-modal-box__close">
+                        <button type="button" class="pf-v5-c-button pf-m-plain" id="modal-close" aria-label="Close">&times;</button>
+                    </div>
                 </div>
             </div>
-            <div id="modal-content" class="modal-content"></div>
-            <div id="modal-footer" class="modal-footer" style="display: none;">
-                <div class="modal-footer-actions">
-                    <button type="button" class="btn btn-secondary" id="modal-scroll-explain-btn" title="Scroll to explanation">Explain</button>
-                    <button type="button" class="btn btn-secondary" id="modal-scroll-devices-btn" title="Scroll to affected systems">Affected systems</button>
+            <div id="modal-content" class="modal-content pf-v5-c-modal-box__body"></div>
+            <div id="modal-footer" class="pf-v5-c-modal-box__footer" style="display: none;">
+                <div class="pf-v5-l-flex pf-v5-m-gap-md">
+                    <button type="button" class="pf-v5-c-button pf-m-secondary" id="modal-scroll-explain-btn" title="Scroll to explanation">Explain</button>
+                    <button type="button" class="pf-v5-c-button pf-m-secondary" id="modal-scroll-devices-btn" title="Scroll to affected systems">Affected systems</button>
                 </div>
-                <div class="modal-footer-actions">
-                    <button type="button" class="btn" id="modal-remediate-btn">Remediate</button>
+                <div class="pf-v5-l-flex pf-v5-m-gap-md">
+                    <button type="button" class="pf-v5-c-button pf-m-primary" id="modal-remediate-btn">Remediate</button>
                 </div>
             </div>
         </div>
@@ -428,7 +281,7 @@
             function loadCves() {
                 var container = document.getElementById("cve-list-container");
                 if (container) {
-                    container.innerHTML = "<div class=\"empty-state\">Loading CVEs…</div>";
+                    container.innerHTML = "<div class=\"pf-v5-l-flex pf-v5-m-gap-md\" style=\"margin-bottom: 12px;\"><span class=\"severity-label severity-label-critical\">Critical: 0</span><span class=\"severity-label severity-label-important\">Important: 0</span><span class=\"severity-label severity-label-moderate\">Moderate: 0</span><span class=\"severity-label severity-label-low\">Low: 0</span></div><div class=\"pf-v5-c-empty-state\"><div class=\"pf-v5-c-empty-state__content\"><p class=\"pf-v5-c-empty-state__body\">Loading CVEs…</p></div></div>";
                 }
                 var promise = scopeSystemUuid
                     ? callTool("vulnerability__get_system_cves", { system_uuid: scopeSystemUuid, sort: "-cvss_score", limit: 100 })
@@ -437,7 +290,7 @@
                     if (result) renderCveList(result);
                     else {
                         if (container) {
-                            container.innerHTML = "<div class=\"empty-state\">Could not load CVEs. Ensure the host supports app-initiated tool calls.</div>";
+                            container.innerHTML = "<div class=\"pf-v5-l-flex pf-v5-m-gap-md\" style=\"margin-bottom: 12px;\"><span class=\"severity-label severity-label-critical\">Critical: 0</span><span class=\"severity-label severity-label-important\">Important: 0</span><span class=\"severity-label severity-label-moderate\">Moderate: 0</span><span class=\"severity-label severity-label-low\">Low: 0</span></div><div class=\"pf-v5-c-empty-state\"><div class=\"pf-v5-c-empty-state__content\"><p class=\"pf-v5-c-empty-state__body\">Could not load CVEs. Ensure the host supports app-initiated tool calls.</p></div></div>";
                         }
                     }
                 });
@@ -500,7 +353,7 @@
                 var el = document.getElementById("page-message");
                 if (!el) return;
                 el.textContent = text;
-                el.className = "page-message visible " + type;
+                el.className = "page-message visible pf-v5-c-alert pf-m-" + (type === "error" ? "danger" : "warning");
                 el.setAttribute("aria-live", "polite");
                 clearTimeout(showMessage._timer);
                 showMessage._timer = setTimeout(function() {
@@ -621,10 +474,10 @@
 
             function severityBadgeClass(severity) {
                 var s = (severity || "").toLowerCase();
-                if (s.indexOf("critical") !== -1) return "critical";
-                if (s.indexOf("important") !== -1 || s === "high") return "important";
-                if (s.indexOf("moderate") !== -1 || s === "medium") return "moderate";
-                return "low";
+                if (s.indexOf("critical") !== -1) return "severity-label severity-label-critical";
+                if (s.indexOf("important") !== -1 || s === "high") return "severity-label severity-label-important";
+                if (s.indexOf("moderate") !== -1 || s === "medium") return "severity-label severity-label-moderate";
+                return "severity-label severity-label-low";
             }
 
             function explanationToShortText(expl) {
@@ -643,9 +496,19 @@
             function renderCveList(data) {
                 var container = document.getElementById("cve-list-container");
                 if (data && data.error) {
+                    var counterRow = document.createElement("div");
+                    counterRow.className = "pf-v5-l-flex pf-v5-m-gap-md";
+                    counterRow.style.marginBottom = "12px";
+                    ["critical", "important", "moderate", "low"].forEach(function(sev) {
+                        var span = document.createElement("span");
+                        span.className = "severity-label severity-label-" + sev;
+                        span.textContent = sev.charAt(0).toUpperCase() + sev.slice(1) + ": 0";
+                        counterRow.appendChild(span);
+                    });
                     container.innerHTML = "";
+                    container.appendChild(counterRow);
                     var errEl = document.createElement("div");
-                    errEl.className = "error-message";
+                    errEl.className = "pf-v5-c-alert pf-m-danger";
                     errEl.textContent = data.error;
                     if (data.hint) {
                         var hintEl = document.createElement("p");
@@ -680,8 +543,20 @@
 
                 container.innerHTML = "";
                 if (cveList.length === 0) {
-                    container.appendChild(document.createElement("div")).className = "empty-state";
-                    container.firstChild.textContent = "No CVEs found.";
+                    var counterRow = document.createElement("div");
+                    counterRow.className = "pf-v5-l-flex pf-v5-m-gap-md";
+                    counterRow.style.marginBottom = "12px";
+                    ["critical", "important", "moderate", "low"].forEach(function(sev) {
+                        var span = document.createElement("span");
+                        span.className = "severity-label severity-label-" + sev;
+                        span.textContent = sev.charAt(0).toUpperCase() + sev.slice(1) + ": 0";
+                        counterRow.appendChild(span);
+                    });
+                    container.appendChild(counterRow);
+                    var emptyDiv = document.createElement("div");
+                    emptyDiv.className = "pf-v5-c-empty-state";
+                    emptyDiv.innerHTML = '<div class="pf-v5-c-empty-state__content"><p class="pf-v5-c-empty-state__body">No CVEs found.</p></div>';
+                    container.appendChild(emptyDiv);
                     return;
                 }
                 var counts = { critical: 0, important: 0, moderate: 0, low: 0 };
@@ -692,18 +567,22 @@
                     if (counts[cls] !== undefined) counts[cls]++;
                 });
                 var counterRow = document.createElement("div");
-                counterRow.className = "cve-severity-counters";
+                counterRow.className = "pf-v5-l-flex pf-v5-m-gap-md";
+                counterRow.style.marginBottom = "12px";
                 ["critical", "important", "moderate", "low"].forEach(function(sev) {
                     var n = counts[sev] || 0;
                     var label = sev.charAt(0).toUpperCase() + sev.slice(1);
                     var span = document.createElement("span");
-                    span.className = "cve-severity-counter " + sev;
+                    span.className = "severity-label severity-label-" + sev;
                     span.textContent = label + ": " + n;
                     counterRow.appendChild(span);
                 });
                 container.appendChild(counterRow);
                 var summary = document.createElement("div");
-                summary.className = "cve-list-summary";
+                summary.className = "pf-v5-c-content";
+                summary.style.fontSize = "13px";
+                summary.style.color = "var(--pf-v5-global--Color--200)";
+                summary.style.marginBottom = "10px";
                 summary.setAttribute("aria-live", "polite");
                 summary.textContent = "Highest severity CVEs (showing " + Math.min(cveList.length, 20) + " of " + totalCves + ")";
                 container.appendChild(summary);
@@ -713,7 +592,7 @@
                 displayList.forEach(function(cve) {
                     var btn = document.createElement("button");
                     btn.type = "button";
-                    btn.className = "cve-btn " + severityClass(cve.impact);
+                    btn.className = "pf-v5-c-button cve-btn " + severityClass(cve.impact);
                     btn.textContent = cve.id;
                     btn.dataset.cve = cve.id;
                     btn.addEventListener("click", function() { openCveOverlay(cve); });
@@ -745,7 +624,7 @@
                     var severity = attrs.severity || attrs.impact || (cve.impact || "Unknown");
                     var cvss = attrs.cvss3_score || attrs.cvss2_score || cve.cvss;
                     severityEl.style.display = "inline-flex";
-                    severityEl.innerHTML = '<span class="severity-badge ' + severityBadgeClass(severity) + '">' + escapeHtml(String(severity).toUpperCase()) + "</span>" + (cvss != null && Number(cvss) > 0 ? '<span class="cvss-score">CVSS ' + Number(cvss).toFixed(1) + "</span>" : "");
+                    severityEl.innerHTML = '<span class="' + severityBadgeClass(severity) + '">' + escapeHtml(severity) + "</span>" + (cvss != null && Number(cvss) > 0 ? '<span class="pf-v5-c-label pf-m-outline">CVSS ' + Number(cvss).toFixed(1) + "</span>" : "");
                 }
                 if (contentEl) buildCveSectionList(contentEl, minimalDetail, [], cve.id, cve);
 
@@ -753,7 +632,7 @@
                 if (refreshBtn) {
                     refreshBtn.style.display = "inline-block";
                     refreshBtn.onclick = function() {
-                        if (contentEl) contentEl.innerHTML = "<div class=\"loading\">Refreshing…</div>";
+                        if (contentEl) contentEl.innerHTML = "<div class=\"pf-v5-c-content\">Refreshing…</div>";
                         openCveOverlay(cve);
                     };
                 }
@@ -882,7 +761,9 @@
                 ids.forEach(function(id) {
                     var btn = document.createElement("button");
                     btn.type = "button";
-                    btn.className = "cve-section-btn";
+                    btn.className = "pf-v5-c-button pf-m-secondary";
+                    btn.style.width = "100%";
+                    btn.style.textAlign = "left";
                     btn.setAttribute("data-section", id);
                     btn.textContent = sectionLabel(id);
                     btn.onclick = function() { showSection(id); };
@@ -899,32 +780,38 @@
                 var descText = attrs.description || attrs.synopsis || "No description available.";
                 var safeId = (cveId || "").replace(/"/g, "&quot;");
                 function sect(title, fn) {
-                    var s = el("div", "cve-detail-section");
-                    s.appendChild(el("div", "section-title", title));
-                    fn(s);
+                    var s = el("div", "pf-v5-c-card");
+                    s.style.marginBottom = "16px";
+                    var header = el("div", "pf-v5-c-card__header");
+                    header.appendChild(el("div", "pf-v5-c-card__title", title));
+                    s.appendChild(header);
+                    var body = el("div", "pf-v5-c-card__body");
+                    fn(body);
+                    s.appendChild(body);
                     container.appendChild(s);
                 }
                 if (sectionId === "description") {
                     sect("Description", function(s) {
                         if (overlaySectionLoading.description) {
-                            s.appendChild(el("div", "loading", "Loading data…"));
+                            s.appendChild(el("div", "pf-v5-c-content", "Loading data…"));
                             return;
                         }
                         if (overlaySectionErrors.description) {
-                            var errD = el("div", "error-message");
+                            var errD = el("div", "pf-v5-c-alert pf-m-danger");
                             errD.textContent = overlaySectionErrors.description;
                             s.appendChild(errD);
                             return;
                         }
-                        var d = el("div", "description");
+                        var d = el("div", "pf-v5-c-content");
                         d.textContent = descText;
+                        d.style.lineHeight = "1.7";
                         s.appendChild(d);
                     });
                     return;
                 }
                 if (sectionId === "metadata") {
                     sect("Metadata", function(s) {
-                        var grid = el("div", "metadata-grid");
+                        var grid = el("div", "metadata-grid pf-v5-l-grid");
                         function metaRow(l, v) {
                             var item = el("div", "metadata-item");
                             item.appendChild(el("div", "metadata-label", l));
@@ -947,16 +834,16 @@
                 if (sectionId === "explain") {
                     sect("Why it affects your systems", function(s) {
                         if (overlaySectionLoading.explain) {
-                            s.appendChild(el("div", "loading", "Loading data…"));
+                            s.appendChild(el("div", "pf-v5-c-content", "Loading data…"));
                             return;
                         }
                         if (overlaySectionErrors.explain) {
-                            var errD = el("div", "error-message");
+                            var errD = el("div", "pf-v5-c-alert pf-m-danger");
                             errD.textContent = overlaySectionErrors.explain;
                             s.appendChild(errD);
                             return;
                         }
-                        var d = el("div", "explain-truncate");
+                        var d = el("div", "pf-v5-c-content");
                         d.textContent = currentOverlayExplainText != null ? currentOverlayExplainText : "Set a device scope or choose an affected system to see an explanation.";
                         s.appendChild(d);
                     });
@@ -965,24 +852,30 @@
                 if (sectionId === "devices") {
                     sect("Affected devices", function(s) {
                         if (overlaySectionLoading.devices) {
-                            s.appendChild(el("div", "loading", "Loading data…"));
+                            s.appendChild(el("div", "pf-v5-c-content", "Loading data…"));
                             return;
                         }
                         if (overlaySectionErrors.devices) {
-                            var errD = el("div", "error-message");
+                            var errD = el("div", "pf-v5-c-alert pf-m-danger");
                             errD.textContent = overlaySectionErrors.devices;
                             s.appendChild(errD);
                             return;
                         }
-                        var ul = el("ul", "flat");
+                        var ul = el("ul", "flat overlay-section");
+                        ul.style.listStyle = "none";
+                        ul.style.padding = "0";
+                        ul.style.margin = "0";
                         if (devices.length === 0) { var li = el("li"); li.textContent = "No affected systems."; ul.appendChild(li); }
                         else devices.forEach(function(d) {
                             var li = el("li");
-                            li.style.display = "flex";
-                            li.style.alignItems = "center";
-                            li.style.gap = "8px";
+                            li.style.padding = "6px 0";
+                            li.style.borderBottom = "1px solid var(--pf-v5-global--BorderColor--100)";
+                            var checkWrap = document.createElement("div");
+                            checkWrap.className = "pf-v5-c-check";
                             var cb = document.createElement("input");
                             cb.type = "checkbox";
+                            cb.className = "pf-v5-c-check__input";
+                            cb.id = "device-check-" + cveId + "-" + d.uuid.replace(/[^a-zA-Z0-9-]/g, "_");
                             cb.checked = remediationSelectedUuids[cveId] ? remediationSelectedUuids[cveId].has(d.uuid) : true;
                             cb.setAttribute("aria-label", "Select " + (d.name || d.uuid) + " for remediation");
                             cb.addEventListener("change", function() {
@@ -990,15 +883,20 @@
                                 if (cb.checked) remediationSelectedUuids[cveId].add(d.uuid);
                                 else remediationSelectedUuids[cveId].delete(d.uuid);
                             });
-                            li.appendChild(cb);
+                            checkWrap.appendChild(cb);
+                            var label = document.createElement("label");
+                            label.className = "pf-v5-c-check__label";
+                            label.htmlFor = cb.id;
                             if (d.name && d.name !== d.uuid) {
-                                li.appendChild(document.createTextNode(d.name + " "));
+                                label.appendChild(document.createTextNode(d.name + " "));
                                 var span = el("span");
-                                span.style.color = "var(--color-text-secondary)";
+                                span.style.color = "var(--pf-v5-global--Color--200)";
                                 span.style.fontSize = "12px";
                                 span.textContent = "(" + d.uuid + ")";
-                                li.appendChild(span);
-                            } else li.appendChild(document.createTextNode(d.uuid));
+                                label.appendChild(span);
+                            } else label.appendChild(document.createTextNode(d.uuid));
+                            checkWrap.appendChild(label);
+                            li.appendChild(checkWrap);
                             ul.appendChild(li);
                         });
                         s.appendChild(ul);
@@ -1007,16 +905,19 @@
                 }
                 if (sectionId === "advisories") {
                     sect("Available Advisories", function(s) {
-                        var list = el("div", "advisories-list");
+                        var list = document.createElement("ul");
+                        list.className = "advisories-list";
                         (attrs.advisories_list || []).forEach(function(adv) {
                             var url = (typeof adv === "string") ? adv : "";
+                            var li = document.createElement("li");
                             var a = document.createElement("a");
                             a.href = url;
                             a.target = "_blank";
                             a.rel = "noopener";
-                            a.className = "advisory-link";
+                            a.className = "pf-v5-c-button pf-m-link";
                             a.textContent = url.split("/").pop() || url || "Advisory";
-                            list.appendChild(a);
+                            li.appendChild(a);
+                            list.appendChild(li);
                         });
                         s.appendChild(list);
                     });
@@ -1024,21 +925,21 @@
                 }
                 if (sectionId === "links") {
                     sect("External Links", function(s) {
-                        var links = el("div", "external-links");
-                        function addLink(href, label, cls) {
+                        var links = el("div", "external-links pf-v5-l-flex pf-v5-m-gap-md pf-v5-m-wrap");
+                        function addLink(href, label, isPrimary) {
                             if (!href) return;
                             var a = document.createElement("a");
                             a.href = href;
                             a.target = "_blank";
                             a.rel = "noopener";
-                            a.className = cls || "external-link";
+                            a.className = isPrimary ? "pf-v5-c-button pf-m-primary" : "pf-v5-c-button pf-m-secondary";
                             a.textContent = label;
                             links.appendChild(a);
                         }
                         var url = (data && data.url) || (cveDetail && cveDetail.data && cveDetail.data.url);
-                        if (url) addLink(url, "Red Hat Console");
-                        addLink("https://access.redhat.com/security/cve/" + safeId, "Red Hat Security", "external-link external-link-secondary");
-                        addLink("https://nvd.nist.gov/vuln/detail/" + safeId, "NVD", "external-link external-link-secondary");
+                        if (url) addLink(url, "Red Hat Console", true);
+                        addLink("https://access.redhat.com/security/cve/" + safeId, "Red Hat Security", false);
+                        addLink("https://nvd.nist.gov/vuln/detail/" + safeId, "NVD", false);
                         s.appendChild(links);
                     });
                     return;
@@ -1054,13 +955,8 @@
                         countLabel.textContent = selectedCount + " device" + (selectedCount !== 1 ? "s" : "") + " selected for remediation";
                         s.appendChild(countLabel);
                         if (showNoSelectionWarning) {
-                            var warn = el("div", "remediate-no-selection-warning");
-                            warn.style.padding = "12px";
-                            warn.style.background = "var(--color-warning-bg, #fff3cd)";
-                            warn.style.border = "1px solid var(--color-warning-border, #ffc107)";
-                            warn.style.borderRadius = "6px";
+                            var warn = el("div", "pf-v5-c-alert pf-m-warning");
                             warn.style.marginBottom = "12px";
-                            warn.style.color = "var(--color-warning-text, #856404)";
                             warn.textContent = "No devices selected. Go to Affected devices and select the systems you want to remediate.";
                             s.appendChild(warn);
                         }
@@ -1070,13 +966,13 @@
                         s.appendChild(para);
                         var remBtn = document.createElement("button");
                         remBtn.type = "button";
-                        remBtn.className = "btn";
+                        remBtn.className = "pf-v5-c-button pf-m-primary";
                         remBtn.id = "modal-remediate-btn";
                         remBtn.textContent = "Remediate";
                         s.appendChild(remBtn);
                         var dlBtn = document.createElement("button");
                         dlBtn.type = "button";
-                        dlBtn.className = "btn btn-secondary";
+                        dlBtn.className = "pf-v5-c-button pf-m-secondary";
                         dlBtn.id = "remediate-section-download-btn";
                         dlBtn.style.marginLeft = "8px";
                         dlBtn.style.display = "none";
@@ -1107,7 +1003,7 @@
                     var el = getMessageEl();
                     if (!el) return;
                     el.textContent = text || "";
-                    el.className = "remediate-section-message visible " + (isError ? "error" : "busy");
+                    el.className = "remediate-section-message visible pf-v5-c-alert " + (isError ? "pf-m-danger" : "pf-m-info");
                 }
                 function hideRemediateMessage() {
                     var el = getMessageEl();
@@ -1142,7 +1038,7 @@
                     btn.removeAttribute("disabled");
                     btn.disabled = false;
                     btn.setAttribute("aria-disabled", "false");
-                    btn.className = "btn";
+                    btn.className = "pf-v5-c-button pf-m-primary";
                     btn.onclick = function() {
                         var yaml = modalPlaybookYaml || "";
                         var filename = "remediation-" + cveId + ".yml";
@@ -1181,7 +1077,7 @@
                             statusEl.appendChild(msg);
                             var textarea = document.createElement("textarea");
                             textarea.id = "remediate-yaml-selectable";
-                            textarea.className = "remediate-yaml-selectable";
+                            textarea.className = "remediate-yaml-selectable pf-v5-c-form-control";
                             textarea.readOnly = true;
                             textarea.value = rawYaml;
                             textarea.setAttribute("aria-label", "Playbook YAML – select and copy");
@@ -1301,7 +1197,7 @@
                     backWrap.innerHTML = "";
                     var back = document.createElement("button");
                     back.type = "button";
-                    back.className = "btn btn-secondary";
+                    back.className = "pf-v5-c-button pf-m-secondary";
                     back.textContent = "← Back to list";
                     back.onclick = showSectionList;
                     backWrap.appendChild(back);
@@ -1340,7 +1236,7 @@
                     var severity = attrs.severity || attrs.impact || "Unknown";
                     var cvss = attrs.cvss3_score || attrs.cvss2_score;
                     severityEl.style.display = "inline-flex";
-                    severityEl.innerHTML = '<span class="severity-badge ' + severityBadgeClass(severity) + '">' + escapeHtml(severity) + "</span>" + (cvss != null && Number(cvss) > 0 ? '<span class="cvss-score">CVSS ' + Number(cvss).toFixed(1) + "</span>" : "");
+                    severityEl.innerHTML = '<span class="' + severityBadgeClass(severity) + '">' + escapeHtml(severity) + "</span>" + (cvss != null && Number(cvss) > 0 ? '<span class="pf-v5-c-label pf-m-outline">CVSS ' + Number(cvss).toFixed(1) + "</span>" : "");
                 }
 
                 currentOverlayCveDetail = cveDetail;
