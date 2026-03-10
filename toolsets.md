@@ -48,6 +48,7 @@ Tools marked as read-write **`(rw)`** are excluded by default. Use the `--all-to
 - `list_hosts`: List hosts with filtering and sorting options.
 - `list_skills`: List skills (e.g. remediation dashboard). Used by the host to discover skills before opening a skill UI.
 - `load_remediation_dashboard_skill`: Open the Remediation Dashboard and load its skill content into context.
+- `load_inventory_dashboard_skill`: Open the Inventory Dashboard and load its skill content into context.
 
 ## content-sources
 - `list_repositories`: List repositories with filtering and pagination options.
