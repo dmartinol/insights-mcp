@@ -129,10 +129,10 @@ class InsightsMCP(FastMCP):
             tool.name
             for tool in tools
             if (
-                hasattr(t, "annotations")
-                and t.annotations
-                and hasattr(t.annotations, "readOnlyHint")
-                and t.annotations.readOnlyHint is False
+                hasattr(tool, "annotations")
+                and tool.annotations
+                and hasattr(tool.annotations, "readOnlyHint")
+                and tool.annotations.readOnlyHint is False
             )
         ]
 
