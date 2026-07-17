@@ -14,6 +14,8 @@ from typing import Any
 import requests
 from fastmcp import FastMCP
 from mcp.types import Icon, ToolAnnotations
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from insights_mcp import __version__, config
 from insights_mcp.catalog_tools import catalog_tool_description
@@ -626,6 +628,10 @@ def main():  # pylint: disable=too-many-statements,too-many-locals
     # Iterate over all MCPs and their tools to format any descriptions and titles
     # that use {container_brand_long} placeholders.
     _format_all_tool_descriptions(mcp_server, container_brand_long=container_brand_long)
+
+    @mcp_server.custom_route("/health", methods=["GET"])
+    async def health_check(request: Request) -> JSONResponse:
+        return JSONResponse({"status": "ok"})
 
     if args.transport == "sse":
         mcp_server.run(

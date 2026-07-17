@@ -11,6 +11,7 @@ metadata:
     - administration
 
   annotations:
+    servicenow.com/appcode: CMDB-LSMCP
     github.com/project-slug: RedHatInsights/insights-mcp
     backstage.io/source-location: url:https://github.com/RedHatInsights/insights-mcp/tree/main/
     backstage.io/managed-by-location: url:https://github.com/RedHatInsights/insights-mcp/blob/main/catalog-info.yaml
@@ -39,8 +40,16 @@ spec:
   lifecycle: beta
   owner: group:redhat/rh-lightspeed-mcp
   system: system:uxe/hybrid-cloud-console
+  dependsOn:
+    - component:uxe/lightrail
+    - system:redhat/mcp-auth-adapter
   auth:
-    type: bearer
+    type: oauth2
+    issuer: https://mcp-auth.api.redhat.com
+    scope: openid api.console api.ocm
+  remote:
+    - url: https://insights-mcp.api.redhat.com/mcp
+      type: streamable-http
 
   packages:
     - type: docker

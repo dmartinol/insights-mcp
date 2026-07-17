@@ -1,0 +1,3 @@
+# insights-mcp uses uv, not Poetry. Patch the Lightrail entrypoint accordingly.
+# ⚠️ Requires uv to be available in the Lightrail base image — confirm with platform team.
+RUN sed -i 's|poetry install --no-interaction --no-ansi|uv sync --no-dev|' /lightrail/entrypoint.bash

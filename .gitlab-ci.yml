@@ -1,0 +1,23 @@
+# Lightrail deploy pipeline — uncomment when the platform team confirms tenant is provisioned.
+#
+# stages:
+#   - build
+#   - deploy-preview
+#   - deploy-qa
+#   - deploy-stage
+#   - deploy-prod
+#   - clean
+#
+# variables:
+#   LIGHTRAIL_VERSION: &LIGHTRAIL_VERSION 1.19.0
+#   LIGHTRAIL_RELEASE_STRATEGY: branch
+#   LIGHTRAIL_RELEASE_BRANCH: main
+#
+# include:
+#   - project: dxp/platforms-pipelines/lightrail-platform/lightrail
+#     ref: release-$LIGHTRAIL_VERSION
+#     file:
+#       - pipeline/global.yaml
+#       - pipeline/stages/build/build.yaml
+#       - pipeline/stages/deploy/deploy.yaml
+#       - pipeline/stages/clean/clean.yaml

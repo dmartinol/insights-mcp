@@ -1,0 +1,9 @@
+metadata:
+  cmdb: CMDB-LSMCP
+application:
+  entrypoint: main.sh
+health_check:
+  path: /health
+hooks:
+  build:
+    containerfile: .light/local/PartialContainerfile

@@ -10,6 +10,9 @@ test_config.json
 *.mcpb
 .envrc
 
+# Lightrail local secrets — never commit
+.light/*/secrets.env
+
 # temporary mermaid cache
 /docs/input.mmd
 /docs/.cache/
